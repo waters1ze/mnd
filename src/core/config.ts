@@ -7,10 +7,13 @@ import YAML from "yaml";
 import type { MndConfig, ProfileModels } from "../types/config.js";
 import { REQUIRED_LOCAL_MODELS } from "./ollamaBootstrap.js";
 
-const CONFIG_DIR = join(homedir(), ".config", "mnd");
+import { getAppDataDir } from "./paths.js";
+
+const CONFIG_DIR = getAppDataDir();
 const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");
 
 const DEFAULT_CONFIG: MndConfig = {
+  version: 1,
   profile: "hybrid",
   vault_path: join(homedir(), "Vaults", "mnd"),
   inbox_path: join(homedir(), "Desktop", "mnd-inbox"),
@@ -77,7 +80,8 @@ export async function loadConfig(): Promise<MndConfig> {
 export async function saveConfig(updated: MndConfig): Promise<void> {
   _config = updated;
   await mkdir(CONFIG_DIR, { recursive: true });
-  await writeFile(CONFIG_PATH, YAML.stringify(updated), "utf-8");
+  const { atomicWriteFile } = await import("./atomic.js");
+  await atomicWriteFile(CONFIG_PATH, YAML.stringify(updated));
 }
 
 export async function updateConfigField(

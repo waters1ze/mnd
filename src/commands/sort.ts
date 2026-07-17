@@ -83,7 +83,8 @@ export const handleSort: CommandHandler = async () => {
     }
 
     await mkdir(destDir, { recursive: true });
-    await copyFile(srcPath, join(destDir, basename(file)));
+    const { safeCopyFile } = await import("../core/fsGuard.js");
+    await safeCopyFile(vaultPath, session.currentProjectSlug ?? "", srcPath, join(destDir, basename(file)), "Import from Inbox");
 
     // Create sidecar note for assets
     if (dest === "assets") {

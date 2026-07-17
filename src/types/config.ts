@@ -15,6 +15,7 @@ export interface ProfileModels {
 }
 
 export interface MndConfig {
+  version: number;
   profile: ProfileName;
   vault_path: string;
   inbox_path?: string;

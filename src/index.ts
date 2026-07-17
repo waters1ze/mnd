@@ -29,6 +29,10 @@ import { handleRefactor } from "./commands/refactor.js";
 import { handleRulesReview } from "./commands/rulesReview.js";
 import { handleStatus } from "./commands/status.js";
 import { handleObsidian } from "./commands/obsidian.js";
+import { handleBackup } from "./commands/backup.js";
+import { handleRestore } from "./commands/restore.js";
+import { handleLogs } from "./commands/logs.js";
+import { handleDoctor } from "./commands/doctor.js";
 
 // ─── Startup checks ───────────────────────────────────────────────────────────
 
@@ -70,10 +74,16 @@ async function main(): Promise<void> {
     await runSetupWizard();
   }
 
+  const { runConfigMigrations } = await import("./core/migrations.js");
+  await runConfigMigrations();
+
   const cfg = await loadConfig();
   verifyModelConsistency();
   const vaultPath = resolveVaultPath(cfg);
   await ensureVaultStructure(vaultPath);
+
+  const { runVaultMigrations } = await import("./core/migrations.js");
+  await runVaultMigrations(vaultPath);
 
   // Register all commands
   registerCommands([
@@ -93,13 +103,17 @@ async function main(): Promise<void> {
     { name: "refactor", handler: handleRefactor },
     { name: "rules review", handler: handleRulesReview },
     { name: "status", handler: handleStatus },
+    { name: "backup", handler: handleBackup },
+    { name: "restore", handler: handleRestore },
+    { name: "logs", handler: handleLogs },
+    { name: "doctor", handler: handleDoctor },
     {
       name: "help",
       handler: async () => {
         console.log(chalk.gray([
           "Commands: config, obsidian, open, create, sort, analyze, prompt,",
           "          approve, fix, show history, full new, full show, thumbnail,",
-          "          refactor, rules review, status",
+          "          refactor, rules review, status, backup, restore",
         ].join("\n")));
       },
     },

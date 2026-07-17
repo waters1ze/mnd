@@ -62,6 +62,11 @@ export async function ensureVaultStructure(vaultPath: string): Promise<void> {
     await writeFile(gitignorePath, GITIGNORE_CONTENT, "utf-8");
   }
 
+  const vaultMetaPath = join(vaultPath, ".mnd-vault.json");
+  if (!existsSync(vaultMetaPath)) {
+    await writeFile(vaultMetaPath, JSON.stringify({ version: 1 }, null, 2), "utf-8");
+  }
+
   // Initialize git if not already
   const gitPath = join(vaultPath, ".git");
   if (!existsSync(gitPath)) {

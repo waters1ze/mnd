@@ -27,13 +27,11 @@ export async function loadProjectState(vaultPath: string, slug: string): Promise
   return JSON.parse(raw) as ProjectState;
 }
 
-/** Atomically write: tmp file → rename */
+/** Atomically write state to disk */
 export async function saveProjectState(vaultPath: string, state: ProjectState): Promise<void> {
-  const tmp = tmpPath(vaultPath, state.projectSlug);
   const target = statePath(vaultPath, state.projectSlug);
-  await mkdir(dirname(target), { recursive: true });
-  await writeFile(tmp, JSON.stringify(state, null, 2), "utf-8");
-  await rename(tmp, target);
+  const { atomicWriteFile } = await import("./atomic.js");
+  await atomicWriteFile(target, JSON.stringify(state, null, 2));
 }
 
 export function isStepDone(state: ProjectState, step: PipelineStep): boolean {
