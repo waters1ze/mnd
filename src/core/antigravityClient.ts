@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { loadConfig } from "./config.js";
 import { PersistentProcess } from "./persistentProcess.js";
+import { getVerifiedAntigravity } from "../integrations/antigravityDiscovery.js";
 
 let _process: PersistentProcess | null = null;
 
@@ -24,11 +25,11 @@ export interface ThumbnailSpec {
 async function getProcess(): Promise<PersistentProcess> {
   if (_process) return _process;
 
-  const cfg = await loadConfig();
-  const cliPath = cfg.connections.antigravity?.cached_executable_path;
+  const verifyResult = await getVerifiedAntigravity(false);
+  const cliPath = verifyResult.installation?.executablePath;
 
-  if (!cliPath) {
-    throw new Error("Antigravity CLI path is not configured.");
+  if (verifyResult.status !== "ready" || !cliPath) {
+    throw new Error("Antigravity CLI is not verified or not configured.");
   }
 
   _process = new PersistentProcess({
@@ -57,6 +58,13 @@ export async function classifyAsset(filePath: string): Promise<AssetClassificati
 
 export async function generateThumbnail(spec: ThumbnailSpec): Promise<string> {
   const proc = await getProcess();
+  const cfg = await loadConfig();
+  const activeProfile = cfg.models[cfg.profile];
+  
+  if (activeProfile?.image_gen?.model) {
+    (spec as any).model = activeProfile.image_gen.model;
+  }
+  
   const req = JSON.stringify({ action: "thumbnail", payload: spec });
   const resp = await proc.send(req);
   const parsed = JSON.parse(resp) as { outputPath: string };
@@ -65,7 +73,15 @@ export async function generateThumbnail(spec: ThumbnailSpec): Promise<string> {
 
 export async function generateImage(prompt: string): Promise<string> {
   const proc = await getProcess();
-  const req = JSON.stringify({ action: "generate_image", payload: { prompt } });
+  const cfg = await loadConfig();
+  const activeProfile = cfg.models[cfg.profile];
+  
+  const payload: any = { prompt };
+  if (activeProfile?.image_gen?.model) {
+    payload.model = activeProfile.image_gen.model;
+  }
+  
+  const req = JSON.stringify({ action: "generate_image", payload });
   const resp = await proc.send(req);
   const parsed = JSON.parse(resp) as { outputPath: string };
   return parsed.outputPath;

@@ -46,9 +46,11 @@ const SECTION_FIELDS: Record<SectionName, ConfigField[]> = {
     { kind: "model", provider: "groq", label: "Hybrid Text Model", getValue: c => c.models.hybrid.text.model ?? "", setValue: (c, v) => c.models.hybrid.text.model = v },
     { kind: "model", provider: "groq", label: "Hybrid Transcription Model", getValue: c => c.models.hybrid.transcription.model ?? "", setValue: (c, v) => c.models.hybrid.transcription.model = v },
     { kind: "model", provider: "groq", label: "Hybrid Vision Model", getValue: c => c.models.hybrid.vision.model ?? "", setValue: (c, v) => c.models.hybrid.vision.model = v },
+    { kind: "model", provider: "antigravity", label: "Hybrid Image Model", getValue: c => c.models.hybrid.image_gen?.model ?? "", setValue: (c, v) => { if(c.models.hybrid.image_gen) { if (v) c.models.hybrid.image_gen.model = v; else delete c.models.hybrid.image_gen.model; } } },
     { kind: "model", provider: "ollama", label: "Local Text Model", getValue: c => c.models.local.text.model ?? "", setValue: (c, v) => c.models.local.text.model = v },
     { kind: "model", provider: "sidecar_whisper", label: "Local Transcription", getValue: c => c.models.local.transcription?.model ?? "", setValue: (c, v) => { if(c.models.local.transcription) c.models.local.transcription.model = v; } },
     { kind: "model", provider: "ollama", label: "Local Vision Model", getValue: c => c.models.local.vision.model ?? "", setValue: (c, v) => c.models.local.vision.model = v },
+    { kind: "model", provider: "antigravity", label: "Local Image Model", getValue: c => c.models.local.image_gen?.model ?? "", setValue: (c, v) => { if(c.models.local.image_gen) { if (v) c.models.local.image_gen.model = v; else delete c.models.local.image_gen.model; } } },
   ],
   fallback: [
     { kind: "boolean", label: "Auto Switch to Local", getValue: c => String(c.fallback.auto_switch_to_local_on_groq_failure), setValue: (c, v) => c.fallback.auto_switch_to_local_on_groq_failure = v },
@@ -207,7 +209,7 @@ export function ConfigScreen(): React.ReactElement {
       setFocusFieldIdx(i => Math.max(0, i - 1));
     } else if (key.downArrow) {
       setFocusFieldIdx(i => Math.min(fields.length - 1, i + 1));
-    } else     if (field.kind === "antigravity") {
+    } else if (field.kind === "antigravity") {
       if (!agvScanning) {
         if (input === "r" || input === "R") {
           setAgvScanning(true);
@@ -220,12 +222,6 @@ export function ConfigScreen(): React.ReactElement {
           setOptions(agvStatus?.checkedCandidates.map(c => ({ value: c.path, label: `${c.path} [${c.source}] - ${c.result}` })) || [{ value: "", label: "No candidates checked" }]);
           setOptionIdx(0);
           setEditing(true);
-        } else if (key.return) {
-          if (agvStatus?.status === "ready" && agvStatus.installation?.models?.length) {
-             setOptions(agvStatus.installation.models.map(m => ({ value: m.id, label: m.id })));
-             setOptionIdx(0);
-             setEditing(true);
-          }
         }
       }
       return;
@@ -244,29 +240,50 @@ export function ConfigScreen(): React.ReactElement {
         setEditing(true);
       } else if (field.kind === "model") {
         const cur = field.getValue(cfg);
-        setOptions([{value: cur, label: "Loading catalog..."}]);
-        setOptionIdx(0);
-        setEditing(true);
-
-        getModelCatalog(false).then(models => {
-          const providerModels = models.filter(m => m.provider === field.provider);
-          let opts: Option[] = providerModels.map(m => ({
-            value: m.id,
-            label: m.displayName || m.id,
-            availability: m.availability,
-            local: m.local
-          }));
-          
-          if (!opts.find(o => o.value === cur) && cur) {
-            opts.unshift({ value: cur, label: cur, availability: "unknown", local: field.provider === "ollama" });
+        
+        if (field.provider === "antigravity") {
+          let opts: Option[] = [];
+          if (agvStatus?.status === "ready") {
+             opts.push({ value: "", label: "Auto / Antigravity default", availability: "available", local: true });
+             if (agvStatus.installation?.models) {
+               agvStatus.installation.models.forEach(m => opts.push({ value: m.id, label: m.id, availability: "available", local: true }));
+             }
+          } else {
+             opts.push({ value: "", label: "Antigravity not verified", availability: "unavailable", local: true });
           }
-          if (opts.length === 0) opts.push({value: "", label: "No models found"});
+          if (!opts.find(o => o.value === cur) && cur) {
+            opts.push({ value: cur, label: cur, availability: "unknown", local: true });
+          }
           opts.push({value: "__custom__", label: "Custom model ID..."});
-
           setOptions(opts);
           const currentIdx = opts.findIndex(o => o.value === cur);
           setOptionIdx(currentIdx >= 0 ? currentIdx : 0);
-        });
+          setEditing(true);
+        } else {
+          setOptions([{value: cur, label: "Loading catalog..."}]);
+          setOptionIdx(0);
+          setEditing(true);
+
+          getModelCatalog(false).then(models => {
+            const providerModels = models.filter(m => m.provider === field.provider);
+            let opts: Option[] = providerModels.map(m => ({
+              value: m.id,
+              label: m.displayName || m.id,
+              availability: m.availability,
+              local: m.local
+            }));
+            
+            if (!opts.find(o => o.value === cur) && cur) {
+              opts.unshift({ value: cur, label: cur, availability: "unknown", local: field.provider === "ollama" });
+            }
+            if (opts.length === 0) opts.push({value: "", label: "No models found"});
+            opts.push({value: "__custom__", label: "Custom model ID..."});
+
+            setOptions(opts);
+            const currentIdx = opts.findIndex(o => o.value === cur);
+            setOptionIdx(currentIdx >= 0 ? currentIdx : 0);
+          });
+        }
       } else {
         setEditing(true);
       }

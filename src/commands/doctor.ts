@@ -140,14 +140,30 @@ async function checkIntegrations(args: DoctorArgs) {
   const checks = [];
 
   // Antigravity
-  const agv = await getVerifiedAntigravity(true);
+  const agv = await getVerifiedAntigravity(args.fix);
   if (agv.status === "ready") {
     checks.push({ name: "Antigravity", status: "PASS", detail: `Ready (v${agv.installation?.version})` });
     checks.push({ name: "AG Protocol", status: "PASS", detail: "JSON Handshake Verified" });
-    if (!agv.installation?.models?.length) {
-       checks.push({ name: "AG Models", status: "WARN", detail: "No models reported by CLI" });
+    
+    // Check Models
+    const activeModel = cfg.models[cfg.profile]?.image_gen?.model;
+    const reportedModels = agv.installation?.models || [];
+    
+    if (!activeModel) {
+      checks.push({ name: "AG Model", status: "PASS", detail: "Auto/Default (No explicit model ID selected)" });
     } else {
-       checks.push({ name: "AG Models", status: "PASS", detail: `${agv.installation.models.length} capabilities` });
+      const found = reportedModels.find(m => m.id === activeModel);
+      if (found) {
+        checks.push({ name: "AG Model", status: "PASS", detail: `${activeModel} verified` });
+      } else {
+        checks.push({ name: "AG Model", status: "FAIL", detail: `${activeModel} not provided by CLI` });
+      }
+    }
+    
+    if (!reportedModels.length) {
+       checks.push({ name: "AG Capabilities", status: "WARN", detail: "No models reported by CLI" });
+    } else {
+       checks.push({ name: "AG Capabilities", status: "PASS", detail: `${reportedModels.length} models reported` });
     }
   } else if (agv.status === "unsupported") {
     checks.push({ name: "Antigravity", status: "WARN", detail: "Desktop app found without CLI protocol" });
@@ -158,11 +174,26 @@ async function checkIntegrations(args: DoctorArgs) {
   // Obsidian
   const vp = cfg.vault_path;
   if (!vp || !existsSync(vp)) {
-    checks.push({ name: "Obsidian Vault", status: "FAIL", detail: "Path missing or deleted" });
+    if (args.fix && vp) {
+      const { mkdir } = await import("node:fs/promises");
+      await mkdir(vp, { recursive: true });
+      checks.push({ name: "Obsidian Vault", status: "PASS", detail: "Path missing, created by fix" });
+    } else {
+      checks.push({ name: "Obsidian Vault", status: "FAIL", detail: "Path missing or deleted" });
+    }
   } else {
     checks.push({ name: "Obsidian Vault", status: "PASS", detail: "Path exists" });
+  }
+
+  if (vp && existsSync(vp)) {
     if (!existsSync(join(vp, ".obsidian"))) {
-      checks.push({ name: "Vault Structure", status: "FAIL", detail: "Missing .obsidian folder" });
+      if (args.fix) {
+        const { handleObsidian } = await import("./obsidian.js");
+        await handleObsidian(["repair"], "/obsidian repair");
+        checks.push({ name: "Vault Structure", status: "PASS", detail: "Repaired by fix" });
+      } else {
+        checks.push({ name: "Vault Structure", status: "FAIL", detail: "Missing .obsidian folder" });
+      }
     } else {
       checks.push({ name: "Vault Structure", status: "PASS", detail: "Valid" });
     }
@@ -171,7 +202,17 @@ async function checkIntegrations(args: DoctorArgs) {
     if (regId) {
        checks.push({ name: "Registration", status: "PASS", detail: `Registered (${regId})` });
     } else {
-       checks.push({ name: "Registration", status: "FAIL", detail: "Not registered in obsidian.json" });
+       if (args.fix) {
+         const { registerVaultSafely } = await import("../integrations/obsidian.js");
+         const reg = await registerVaultSafely(vp);
+         if (reg.success) {
+           checks.push({ name: "Registration", status: "PASS", detail: `Registered by fix (${reg.vaultId})` });
+         } else {
+           checks.push({ name: "Registration", status: "FAIL", detail: `Fix failed: ${reg.error}` });
+         }
+       } else {
+         checks.push({ name: "Registration", status: "FAIL", detail: "Not registered in obsidian.json" });
+       }
     }
   }
 

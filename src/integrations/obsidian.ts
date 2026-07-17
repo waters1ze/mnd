@@ -65,6 +65,21 @@ export async function registerVaultSafely(targetPath: string): Promise<{ success
       }
     }
 
+    // Check if Obsidian is running before modifying
+    const isRunning = await new Promise<boolean>((resolve) => {
+      import("node:child_process").then(({ exec }) => {
+        const cmd = process.platform === "win32" ? 'tasklist /FI "IMAGENAME eq Obsidian.exe" /NH' : 'pgrep -x "obsidian"';
+        exec(cmd, (err, stdout) => {
+          if (err) return resolve(false);
+          resolve(stdout.toLowerCase().includes("obsidian"));
+        });
+      });
+    });
+
+    if (isRunning) {
+      return { success: false, vaultId: null, error: "Obsidian is currently running. Please close it before registering a new vault." };
+    }
+
     // Backup before write
     const backupDir = join(getAppDataDir(), "backups");
     await backupFile(obsidianJsonPath, backupDir, "obsidian_pre_reg");
@@ -86,6 +101,9 @@ export async function registerVaultSafely(targetPath: string): Promise<{ success
     const readback = await readFile(obsidianJsonPath, "utf-8");
     const verData = JSON.parse(readback);
     if (!verData.vaults || !verData.vaults[newId] || verData.vaults[newId].path !== targetPath) {
+      // Rollback
+      const backupRaw = await readFile(join(backupDir, "obsidian_pre_reg"), "utf-8");
+      await atomicWriteFile(obsidianJsonPath, backupRaw);
       return { success: false, vaultId: null, error: "Verification failed after writing obsidian.json" };
     }
 
@@ -116,19 +134,18 @@ export function openRegisteredVault(vaultId: string, homeNote: string = "Home"):
     uriObj.searchParams.set("file", homeNote);
     const uri = uriObj.toString();
     
-    const platform = process.platform;
-    let cmd: string;
-    if (platform === "win32") {
-      cmd = `cmd /c start "" "${uri}"`;
-    } else if (platform === "darwin") {
-      cmd = `open "${uri}"`;
-    } else {
-      cmd = `xdg-open "${uri}"`;
-    }
-    
-    import("node:child_process").then(({ exec }) => {
-      exec(cmd, (err) => (err ? rejectFn(err) : resolveFn()));
-    });
+    import("node:child_process").then(({ spawn }) => {
+      let proc;
+      if (process.platform === "win32") {
+        proc = spawn("cmd.exe", ["/c", "start", "", uri], { detached: true, stdio: "ignore", windowsVerbatimArguments: true });
+      } else if (process.platform === "darwin") {
+        proc = spawn("open", [uri], { detached: true, stdio: "ignore" });
+      } else {
+        proc = spawn("xdg-open", [uri], { detached: true, stdio: "ignore" });
+      }
+      proc.unref();
+      resolveFn();
+    }).catch(rejectFn);
   });
 }
 

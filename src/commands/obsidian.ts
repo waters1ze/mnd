@@ -28,7 +28,8 @@ async function ensureVaultStructure(vaultPath: string): Promise<void> {
   if (!existsSync(homePath)) {
     const content = `# MND Vault Home\n\nWelcome to your MND vault. Here you can find your projects and assets.\n\n- [[Projects/]]\n- [[Assets/]]\n- [[Global_Rules/]]\n- [[Styles/]]\n- [[Skills/]]\n`;
     try {
-      writeFileSync(homePath, content, "utf-8");
+      // Use wx flag for exclusive creation to prevent accidental overwrites
+      writeFileSync(homePath, content, { encoding: "utf-8", flag: "wx" });
     } catch {}
   }
 }
@@ -46,7 +47,10 @@ async function performSetup(cfg: any) {
 
   if (typeof newPath !== "string") return; // cancelled
 
-  let targetPath = newPath.trim();
+  let targetPath = newPath.trim().replace(/^["']|["']$/g, '');
+  if (targetPath.startsWith('~')) {
+    targetPath = join(homedir(), targetPath.slice(1));
+  }
 
   // Handle conflicting nonempty vault logic if moving from an old path
   if (cfg.vault_path && targetPath !== cfg.vault_path && existsSync(cfg.vault_path)) {
@@ -66,9 +70,27 @@ async function performSetup(cfg: any) {
 
     if (choice === "copy") {
       console.log(chalk.gray(`Copying vault to ${targetPath}...`));
-      await cp(cfg.vault_path, targetPath, { recursive: true });
+      
+      const stagingPath = `${targetPath}.staging.${Date.now()}`;
+      await cp(cfg.vault_path, stagingPath, { recursive: true });
+      
+      // Atomic promotion (only works if target doesn't exist, which we assume if it's new)
+      // If target exists, we'd need to rename it away first.
+      if (existsSync(targetPath)) {
+        console.log(chalk.yellow(`Target ${targetPath} already exists. Cannot safely copy over non-empty directory.`));
+        return;
+      }
+      import("node:fs/promises").then(({ rename }) => rename(stagingPath, targetPath));
       console.log(chalk.green("✓ Vault copied."));
     }
+  } else if (existsSync(targetPath)) {
+    import("node:fs").then(({ readdirSync }) => {
+      const files = readdirSync(targetPath);
+      if (files.length > 0 && !files.includes(".obsidian")) {
+         console.log(chalk.yellow(`Warning: ${targetPath} is not empty and does not look like an existing vault.`));
+         console.log(chalk.yellow(`MND will create folders inside it, but will not delete your files.`));
+      }
+    });
   }
 
   console.log(chalk.white(`\nThe following will be created in ${targetPath}:`));
@@ -130,6 +152,11 @@ export const handleObsidian: CommandHandler = async (args, rawInput) => {
   }
 
   if (args[0] === "reset") {
+    const ok = await confirm({
+      message: "Are you sure you want to reset Obsidian metadata? This will forget the vault registration in MND.",
+      initialValue: false
+    });
+    if (!ok) return;
     await updateConfigField(c => {
       if (c.obsidian) {
         c.obsidian.initialized = false;

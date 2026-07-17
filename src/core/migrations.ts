@@ -34,7 +34,7 @@ export async function runConfigMigrations(): Promise<void> {
 
   console.log(chalk.yellow(`\n[MIGRATION] Upgrading config from v${currentVersion} to v${LATEST_CONFIG_VERSION}...`));
   const backupDir = join(getAppDataDir(), "backups");
-  await backupFile(configPath, backupDir, `pre-migration-v${currentVersion}`);
+  const backupPath = await backupFile(configPath, backupDir, `pre-migration-v${currentVersion}`);
 
   let migrated = { ...parsed };
 
@@ -75,6 +75,19 @@ export async function runConfigMigrations(): Promise<void> {
   }
 
   await atomicWriteFile(configPath, YAML.stringify(migrated));
+  
+  try {
+    const checkRaw = await readFile(configPath, "utf-8");
+    const checkParsed = YAML.parse(checkRaw);
+    if (checkParsed.version !== LATEST_CONFIG_VERSION) throw new Error("Version mismatch after write");
+  } catch (e: any) {
+    console.log(chalk.red(`\n[!] Config migration verification failed: ${e.message}. Rolling back.`));
+    if (backupPath && existsSync(backupPath)) {
+      const backupRaw = await readFile(backupPath, "utf-8");
+      await atomicWriteFile(configPath, backupRaw);
+    }
+    process.exit(1);
+  }
   console.log(chalk.green("✓ Config migration successful."));
 }
 
@@ -100,7 +113,7 @@ export async function runVaultMigrations(vaultPath: string): Promise<void> {
   
   console.log(chalk.yellow(`\n[MIGRATION] Upgrading vault from v${currentVersion} to v${LATEST_VAULT_VERSION}...`));
   const backupDir = join(getAppDataDir(), "backups");
-  await backupFile(vaultMetaPath, backupDir, `pre-migration-vault-v${currentVersion}`);
+  const backupPath = await backupFile(vaultMetaPath, backupDir, `pre-migration-vault-v${currentVersion}`);
   
   let migrated = { ...parsed };
   if (currentVersion < 1) {
@@ -114,6 +127,19 @@ export async function runVaultMigrations(vaultPath: string): Promise<void> {
   }
 
   await atomicWriteFile(vaultMetaPath, JSON.stringify(migrated, null, 2));
+  
+  try {
+    const checkRaw = await readFile(vaultMetaPath, "utf-8");
+    const checkParsed = JSON.parse(checkRaw);
+    if (checkParsed.version !== LATEST_VAULT_VERSION) throw new Error("Version mismatch after write");
+  } catch (e: any) {
+    console.log(chalk.red(`\n[!] Vault migration verification failed: ${e.message}. Rolling back.`));
+    if (backupPath && existsSync(backupPath)) {
+      const backupRaw = await readFile(backupPath, "utf-8");
+      await atomicWriteFile(vaultMetaPath, backupRaw);
+    }
+    process.exit(1);
+  }
   console.log(chalk.green("✓ Vault migration successful."));
 }
 
