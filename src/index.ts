@@ -6,7 +6,7 @@ import chalk from "chalk";
 import ffmpegPath from "ffmpeg-static";
 // @ts-ignore
 import ffprobeStatic from "ffprobe-static";
-import { loadConfig, resolveVaultPath, configExists } from "./core/config.js";
+import { loadConfig, resolveVaultPath, configExists, verifyModelConsistency } from "./core/config.js";
 import { ensureVaultStructure } from "./core/vault.js";
 import { secretsHasKey } from "./core/secrets.js";
 import { runSetupWizard } from "./ui/setupWizard.js";
@@ -28,6 +28,7 @@ import { handleThumbnail } from "./commands/thumbnail.js";
 import { handleRefactor } from "./commands/refactor.js";
 import { handleRulesReview } from "./commands/rulesReview.js";
 import { handleStatus } from "./commands/status.js";
+import { handleObsidian } from "./commands/obsidian.js";
 
 // ─── Startup checks ───────────────────────────────────────────────────────────
 
@@ -40,7 +41,12 @@ function checkFFmpeg(): void {
   for (const p of paths) {
     const dir = dirname(p);
     for (const key of keys) {
-      process.env[key] = dir + (process.platform === "win32" ? ";" : ":") + process.env[key];
+      const currentPath = process.env[key] || "";
+      const delimiter = process.platform === "win32" ? ";" : ":";
+      const parts = currentPath.split(delimiter);
+      if (!parts.includes(dir)) {
+        process.env[key] = dir + delimiter + currentPath;
+      }
     }
   }
 
@@ -65,12 +71,14 @@ async function main(): Promise<void> {
   }
 
   const cfg = await loadConfig();
+  verifyModelConsistency();
   const vaultPath = resolveVaultPath(cfg);
   await ensureVaultStructure(vaultPath);
 
   // Register all commands
   registerCommands([
     { name: "config", handler: handleConfig },
+    { name: "obsidian", handler: handleObsidian },
     { name: "open", handler: handleOpen },
     { name: "create", handler: handleCreate },
     { name: "sort", handler: handleSort },
@@ -89,8 +97,8 @@ async function main(): Promise<void> {
       name: "help",
       handler: async () => {
         console.log(chalk.gray([
-          "Commands: config, open, create, sort, analyze, prompt, approve,",
-          "          fix, show history, full new, full show, thumbnail,",
+          "Commands: config, obsidian, open, create, sort, analyze, prompt,",
+          "          approve, fix, show history, full new, full show, thumbnail,",
           "          refactor, rules review, status",
         ].join("\n")));
       },

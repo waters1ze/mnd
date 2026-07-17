@@ -37,6 +37,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "rules review", slash: "/rules review", icon: "☰", description: "Review global rules", acceptsArgs: false },
   { name: "status", slash: "/status", icon: "●", description: "Show current project/profile status", acceptsArgs: false },
   { name: "config", slash: "/config", icon: "⚙", description: "Open the settings screen", acceptsArgs: false },
+  { name: "obsidian", slash: "/obsidian", icon: "◆", description: "Open the vault in Obsidian", acceptsArgs: false },
 ];
 
 // Multi-word commands (matched by prefix)

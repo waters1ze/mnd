@@ -422,13 +422,37 @@ export async function runSetupWizard(validator = defaultGroqValidator): Promise<
       const pulled = await listPulledModels();
       const required = [REQUIRED_LOCAL_MODELS.text, REQUIRED_LOCAL_MODELS.vision];
 
+      let spinnerIndex = 0;
+      const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
       for (const model of required) {
         if (!pulled.includes(model)) {
-          const bar = startTimeProgress(`Pulling ${model}`, 100);
-          const pullRes = await pullModel(model, (percent) => {
-            bar.update(percent);
+          let hasBarStarted = false;
+          let bar: any = null;
+
+          const pullRes = await pullModel(model, (percent, rawLine) => {
+            if (!isNaN(percent)) {
+              if (!hasBarStarted) {
+                bar = startTimeProgress(`Pulling ${model}`, 100);
+                hasBarStarted = true;
+              }
+              bar.update(percent);
+            } else {
+              if (hasBarStarted) {
+                stopProgress();
+                hasBarStarted = false;
+              }
+              const spin = spinnerFrames[spinnerIndex++ % spinnerFrames.length];
+              process.stdout.write(`\r${chalk.hex(theme.accent)(spin)} Pulling ${model}: ${rawLine.trim()}...      `);
+            }
           });
-          stopProgress();
+
+          if (hasBarStarted) {
+            stopProgress();
+          } else {
+            process.stdout.write("\n");
+          }
+
           if (!pullRes.ok) {
             console.log(chalk.red(`\nError pulling local model ${model}: ${pullRes.error}`));
           }

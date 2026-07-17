@@ -73,15 +73,22 @@ export async function pullModel(
     let errorOutput = "";
 
     proc.stdout?.on("data", (chunk: Buffer) => {
-      const lines = chunk.toString().split(/\r?\n/).filter(Boolean);
-      for (const line of lines) {
-        const match = line.match(/([0-9.]+)%/);
+      // Ollama pull updates progress using carriage returns (\r) to draw in-place.
+      // We split by both \r and \n to handle line-by-line updates,
+      // and match the percentage from the last line chunk.
+      const lines = chunk.toString().split(/[\r\n]+/).filter(Boolean);
+      if (lines.length > 0) {
+        const lastLine = lines[lines.length - 1] ?? "";
+        const match = lastLine.match(/([0-9.]+)%/);
         if (match && match[1]) {
           const percent = parseFloat(match[1]);
           if (!isNaN(percent)) {
-            onProgress(percent, line);
+            onProgress(percent, lastLine);
+            return;
           }
         }
+        // Fallback: report NaN to trigger indeterminate spinner state in UI
+        onProgress(NaN, lastLine);
       }
     });
 

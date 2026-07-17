@@ -39,7 +39,7 @@ export async function ollamaVisionChat(
 ): Promise<string> {
   const cfg = await loadConfig();
   const profile = await getActiveProfile();
-  const model = profile.vision.model ?? "llava:13b";
+  const model = profile.vision.model ?? "llava:7b";
   const host = cfg.connections.ollama_host;
 
   return withLog(step, "ollama", model, async () => {

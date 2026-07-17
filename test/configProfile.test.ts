@@ -36,4 +36,23 @@ describe("Active profile switching integration", () => {
     const restoredProfile = await getActiveProfile();
     expect(restoredProfile.transcription.provider).toBe("groq");
   });
+
+  test("verifyModelConsistency validates config models correctly", async () => {
+    const { verifyModelConsistency } = await import("../src/core/config.js");
+    const { REQUIRED_LOCAL_MODELS } = await import("../src/core/ollamaBootstrap.js");
+    
+    // Should run successfully without throwing
+    expect(() => verifyModelConsistency()).not.toThrow();
+
+    // Corrupt REQUIRED_LOCAL_MODELS temporarily
+    const originalVision = REQUIRED_LOCAL_MODELS.vision;
+    (REQUIRED_LOCAL_MODELS as any).vision = "corrupted-vision-model";
+
+    expect(() => verifyModelConsistency()).toThrow(
+      /Model consistency check failed/
+    );
+
+    // Restore
+    (REQUIRED_LOCAL_MODELS as any).vision = originalVision;
+  });
 });

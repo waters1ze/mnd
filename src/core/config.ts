@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import YAML from "yaml";
 import type { MndConfig, ProfileModels } from "../types/config.js";
+import { REQUIRED_LOCAL_MODELS } from "./ollamaBootstrap.js";
 
 const CONFIG_DIR = join(homedir(), ".config", "mnd");
 const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");
@@ -32,7 +33,7 @@ const DEFAULT_CONFIG: MndConfig = {
     local: {
       transcription: { provider: "sidecar_whisper", model: "medium" },
       text: { provider: "ollama", model: "llama3.1:8b" },
-      vision: { provider: "ollama", model: "llava:13b" },
+      vision: { provider: "ollama", model: "llava:7b" },
       image_gen: { provider: "antigravity" },
     },
   },
@@ -123,4 +124,16 @@ function deepMerge(base: any, override: any): any {
 /** Invalidate in-memory cache (used after editing config) */
 export function invalidateConfigCache(): void {
   _config = null;
+}
+
+export function verifyModelConsistency(): void {
+  const localModels = DEFAULT_CONFIG.models.local;
+  if (
+    localModels.text.model !== REQUIRED_LOCAL_MODELS.text ||
+    localModels.vision.model !== REQUIRED_LOCAL_MODELS.vision
+  ) {
+    throw new Error(
+      `Model consistency check failed! REQUIRED_LOCAL_MODELS has text: "${REQUIRED_LOCAL_MODELS.text}", vision: "${REQUIRED_LOCAL_MODELS.vision}". But DEFAULT_CONFIG local models are text: "${localModels.text.model}", vision: "${localModels.vision.model}".`
+    );
+  }
 }
