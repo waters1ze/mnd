@@ -1,26 +1,27 @@
-// src/core/projectState.ts
-import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type { ProjectState, PipelineStep } from "../types/pipeline.js";
 
-function statePath(vaultPath: string, slug: string): string {
-  return join(vaultPath, "Projects", slug, ".mnd", "project_state.json");
-}
-
-function tmpPath(vaultPath: string, slug: string): string {
-  return join(vaultPath, "Projects", slug, ".mnd", "project_state.json.tmp");
-}
-
 export async function loadProjectState(vaultPath: string, slug: string): Promise<ProjectState> {
-  const p = statePath(vaultPath, slug);
+  const { getProjectPaths } = await import("./projectPaths.js");
+  const paths = getProjectPaths(vaultPath, slug);
+  const p = paths.stateJson;
   if (!existsSync(p)) {
+    const now = new Date().toISOString();
     return {
+      version: 1,
       projectSlug: slug,
+      runId: null,
+      sourceManifest: {},
+      activeProfile: "hybrid",
+      createdAt: now,
+      updatedAt: now,
       lastCompletedStep: null,
+      cancellationState: "none",
+      steps: {},
       editPlan: null,
       stepOutputs: {},
-      errors: [],
     };
   }
   const raw = await readFile(p, "utf-8");
@@ -29,7 +30,10 @@ export async function loadProjectState(vaultPath: string, slug: string): Promise
 
 /** Atomically write state to disk */
 export async function saveProjectState(vaultPath: string, state: ProjectState): Promise<void> {
-  const target = statePath(vaultPath, state.projectSlug);
+  const { getProjectPaths } = await import("./projectPaths.js");
+  const paths = getProjectPaths(vaultPath, state.projectSlug);
+  const target = paths.stateJson;
+  state.updatedAt = new Date().toISOString();
   const { atomicWriteFile } = await import("./atomic.js");
   await atomicWriteFile(target, JSON.stringify(state, null, 2));
 }

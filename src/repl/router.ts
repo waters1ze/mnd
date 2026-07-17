@@ -42,10 +42,13 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "restore", slash: "/restore", icon: "⏪", description: "Restore config or project", acceptsArgs: true },
   { name: "logs", slash: "/logs", icon: "🖹", description: "View system or project logs", acceptsArgs: true },
   { name: "doctor", slash: "/doctor", icon: "🩺", description: "Run diagnostics", acceptsArgs: true },
+  { name: "export validate", slash: "/export validate", icon: "✔", description: "Validate the timeline FCPXML", acceptsArgs: false },
+  { name: "export reveal", slash: "/export reveal", icon: "📂", description: "Reveal the exported FCPXML file", acceptsArgs: false },
+  { name: "export retry", slash: "/export retry", icon: "🔁", description: "Regenerate FCPXML from last plan", acceptsArgs: false },
 ];
 
 // Multi-word commands (matched by prefix)
-const MULTI_WORD_COMMANDS = ["show history", "full new", "full show", "rules review"];
+const MULTI_WORD_COMMANDS = ["show history", "full new", "full show", "rules review", "export validate", "export reveal", "export retry"];
 
 let customRegistry: CommandEntry[] = [];
 

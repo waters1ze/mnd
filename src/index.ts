@@ -11,13 +11,14 @@ import { ensureVaultStructure } from "./core/vault.js";
 import { secretsHasKey } from "./core/secrets.js";
 import { runSetupWizard } from "./ui/setupWizard.js";
 import { registerCommands } from "./repl/router.js";
-import { startRepl } from "./repl/loop.js";
+import { startRepl, session } from "./repl/loop.js";
 
 // ─── Import all command handlers ──────────────────────────────────────────────
 import { handleConfig } from "./commands/config.js";
 import { handleOpen } from "./commands/open.js";
 import { handleCreate } from "./commands/create.js";
 import { handleSort } from "./commands/sort.js";
+import { handleExportValidate, handleExportReveal, handleExportRetry } from "./commands/exportCommands.js";
 import { handleAnalyze } from "./commands/analyze.js";
 import { handlePrompt } from "./commands/prompt.js";
 import { handleApprove } from "./commands/approve.js";
@@ -97,6 +98,9 @@ async function main(): Promise<void> {
     { name: "approve", handler: handleApprove },
     { name: "fix", handler: handleFix },
     { name: "show history", handler: handleShowHistory },
+    { name: "export validate", handler: async (args) => await handleExportValidate(args[0] || session.currentProjectSlug || "") },
+    { name: "export reveal", handler: async (args) => await handleExportReveal(args[0] || session.currentProjectSlug || "") },
+    { name: "export retry", handler: async (args) => await handleExportRetry(args[0] || session.currentProjectSlug || "") },
     { name: "full new", handler: (args, raw) => handleFull(["new", ...args], raw) },
     { name: "full show", handler: (args, raw) => handleFull(["show", ...args], raw) },
     { name: "thumbnail", handler: handleThumbnail },

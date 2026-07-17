@@ -22,13 +22,22 @@ afterEach(async () => {
   await rm(tmpVault, { recursive: true, force: true });
 });
 
+import { mkdir } from "node:fs/promises";
+
 function makeState(slug = "test-slug"): ProjectState {
   return {
+    version: 1,
     projectSlug: slug,
+    runId: null,
+    sourceManifest: {},
+    activeProfile: "hybrid",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     lastCompletedStep: null,
+    cancellationState: "none",
+    steps: {},
     editPlan: null,
     stepOutputs: {},
-    errors: [],
   };
 }
 
@@ -37,7 +46,6 @@ describe("loadProjectState()", () => {
     const state = await loadProjectState(tmpVault, "nonexistent");
     expect(state.lastCompletedStep).toBeNull();
     expect(state.editPlan).toBeNull();
-    expect(state.errors).toHaveLength(0);
   });
 });
 
@@ -45,6 +53,9 @@ describe("saveProjectState() + loadProjectState()", () => {
   test("round-trip: save then load recovers state", async () => {
     const state = makeState();
     state.lastCompletedStep = "transcribe";
+    
+    // Ensure dir exists
+    await mkdir(join(tmpVault, "Projects", "test-slug", ".mnd"), { recursive: true });
     await saveProjectState(tmpVault, state);
 
     const loaded = await loadProjectState(tmpVault, "test-slug");
@@ -55,11 +66,12 @@ describe("saveProjectState() + loadProjectState()", () => {
   test("atomic write: state is valid JSON after save", async () => {
     const state = makeState();
     state.lastCompletedStep = "vision";
+    await mkdir(join(tmpVault, "Projects", "test-slug", ".mnd"), { recursive: true });
     await saveProjectState(tmpVault, state);
 
     const { readFile } = await import("node:fs/promises");
     const raw = await readFile(
-      join(tmpVault, "Projects", "test-slug", ".mnd", "project_state.json"),
+      join(tmpVault, "Projects", "test-slug", ".mnd", "state.json"),
       "utf-8"
     );
     expect(() => JSON.parse(raw)).not.toThrow();

@@ -173,11 +173,28 @@ export async function createProject(
   style: string
 ): Promise<string> {
   const slug = slugify(name);
-  const projectDir = join(vaultPath, "Projects", slug);
+  
+  const { getProjectPaths } = await import("./projectPaths.js");
+  const paths = getProjectPaths(vaultPath, slug);
 
-  await mkdir(join(projectDir, "raw"), { recursive: true });
-  await mkdir(join(projectDir, "reports"), { recursive: true });
-  await mkdir(join(projectDir, ".mnd"), { recursive: true });
+  // Create all necessary directories
+  const dirs = [
+    paths.rawDir,
+    paths.exportsDir,
+    paths.validationDir,
+    paths.reportsDir,
+    paths.mndDir,
+    paths.cacheDir,
+    paths.audioDir,
+    paths.framesDir,
+    paths.proxiesDir,
+    paths.backupsDir,
+    paths.syncDir,
+  ];
+
+  for (const dir of dirs) {
+    await mkdir(dir, { recursive: true });
+  }
 
   const now = new Date().toISOString();
   const frontmatter: ProjectFrontmatter = {
@@ -190,7 +207,7 @@ export async function createProject(
   };
 
   await writeFrontmatter(
-    join(projectDir, "project.md"),
+    paths.projectMd,
     frontmatter,
     `# ${name}\n\nProject created by mnd.\n`
   );
@@ -203,7 +220,9 @@ export async function updateProjectFrontmatter(
   slug: string,
   updater: (fm: ProjectFrontmatter) => void
 ): Promise<void> {
-  const mdPath = join(vaultPath, "Projects", slug, "project.md");
+  const { getProjectPaths } = await import("./projectPaths.js");
+  const paths = getProjectPaths(vaultPath, slug);
+  const mdPath = paths.projectMd;
   const { data, content } = await readFrontmatter<ProjectFrontmatter>(mdPath);
   updater(data);
   data.updated = new Date().toISOString();

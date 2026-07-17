@@ -57,10 +57,47 @@ export type PipelineStep =
   | "plan"
   | "exported";
 
+export type StepStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "stale";
+
+export interface StepRecord {
+  status: StepStatus;
+  startedAt?: string;
+  completedAt?: string;
+  updatedAt: string;
+  durationMs?: number;
+  attempts: number;
+  inputFingerprint?: string;
+  cacheKey?: string;
+  outputPaths: string[];
+  provider?: string;
+  model?: string;
+  toolVersion?: string;
+  error?: {
+    code: string;
+    message: string;
+    retryable: boolean;
+  };
+}
+
 export interface ProjectState {
+  version: number;
   projectSlug: string;
+  runId: string | null;
+  sourceManifest: Record<string, string>; // e.g. path -> fingerprint
+  activeProfile: string;
+  createdAt: string;
+  updatedAt: string;
   lastCompletedStep: PipelineStep | null;
+  cancellationState: "none" | "requested" | "force";
+  steps: Partial<Record<PipelineStep, StepRecord>>;
+  
+  // Legacy or simplified data structures that we might migrate inside steps
   editPlan: EditPlan | null;
-  stepOutputs: Record<string, unknown>; // cached raw outputs per step
-  errors: Array<{ step: string; message: string; at: string }>;
+  stepOutputs: Record<string, unknown>;
 }

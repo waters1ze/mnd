@@ -2,10 +2,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import chalk from "chalk";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, rename } from "node:fs/promises";
 import YAML from "yaml";
 import { backupFile, atomicWriteFile } from "./atomic.js";
 import { getAppDataDir } from "./paths.js";
+import { getProjectPaths } from "./projectPaths.js";
 import type { MndConfig } from "../types/config.js";
 
 export const LATEST_CONFIG_VERSION = 1;
@@ -74,8 +75,60 @@ export async function runVaultMigrations(vaultPath: string): Promise<void> {
   let migrated = { ...parsed };
   if (currentVersion < 1) {
     migrated.version = 1;
+    // Execute v0 -> v1 layout migration for all projects
+    const { listProjects } = await import("./vault.js");
+    const projects = await listProjects(vaultPath);
+    for (const proj of projects) {
+      await migrateProjectLayoutV1(vaultPath, proj.slug);
+    }
   }
-  
+
   await atomicWriteFile(vaultMetaPath, JSON.stringify(migrated, null, 2));
   console.log(chalk.green("✓ Vault migration successful."));
+}
+
+async function migrateProjectLayoutV1(vaultPath: string, slug: string): Promise<void> {
+  const paths = getProjectPaths(vaultPath, slug);
+  const dirs = [
+    paths.exportsDir, paths.validationDir, paths.reportsDir, paths.mndDir,
+    paths.cacheDir, paths.audioDir, paths.framesDir, paths.proxiesDir,
+    paths.backupsDir, paths.syncDir
+  ];
+  for (const dir of dirs) {
+    if (!existsSync(dir)) {
+      await mkdir(dir, { recursive: true });
+    }
+  }
+
+  const legacyStatePath = join(vaultPath, "Projects", slug, ".mnd", "project_state.json");
+  if (existsSync(legacyStatePath) && paths.stateJson !== legacyStatePath) {
+    console.log(chalk.gray(`  Migrating project state for ${slug}...`));
+    // Backup
+    await backupFile(legacyStatePath, paths.backupsDir, "pre-migration-state-v0");
+    // Read & Validate
+    const raw = await readFile(legacyStatePath, "utf-8");
+    let state;
+    try {
+      state = JSON.parse(raw);
+    } catch (e) {
+      console.log(chalk.red(`  Failed to parse legacy state for ${slug}. Skipping state migration.`));
+      return;
+    }
+    // Transform schema
+    state.version = 1;
+    if (!state.runId) state.runId = null;
+    if (!state.sourceManifest) state.sourceManifest = {};
+    if (!state.activeProfile) state.activeProfile = "hybrid";
+    if (!state.createdAt) state.createdAt = new Date().toISOString();
+    if (!state.updatedAt) state.updatedAt = new Date().toISOString();
+    if (!state.cancellationState) state.cancellationState = "none";
+    if (!state.steps) state.steps = {};
+    // Atomic Write
+    await atomicWriteFile(paths.stateJson, JSON.stringify(state, null, 2));
+    // Reread verification
+    const newRaw = await readFile(paths.stateJson, "utf-8");
+    JSON.parse(newRaw);
+    // Archive old file
+    await rename(legacyStatePath, `${legacyStatePath}.archived`);
+  }
 }
