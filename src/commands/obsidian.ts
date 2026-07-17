@@ -3,8 +3,9 @@ import { text, confirm, select } from "@clack/prompts";
 import { loadConfig, saveConfig, updateConfigField, resolveVaultPath } from "../core/config.js";
 import { getRegisteredVaultId, registerVaultSafely, openRegisteredVault, launchObsidianApp } from "../integrations/obsidian.js";
 import { writeFileSync, existsSync } from "node:fs";
-import { mkdir, cp } from "node:fs/promises";
+import { mkdir, cp, rm, readdir, stat, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
 import { homedir } from "node:os";
@@ -72,16 +73,59 @@ async function performSetup(cfg: any) {
       console.log(chalk.gray(`Copying vault to ${targetPath}...`));
       
       const stagingPath = `${targetPath}.staging.${Date.now()}`;
+      
+      // Calculate source manifest
+      const getManifest = async (dir: string) => {
+        const manifest: Record<string, string> = {};
+        const walk = async (current: string, rel: string) => {
+          const files = await readdir(current);
+          for (const f of files) {
+            const p = join(current, f);
+            const r = join(rel, f);
+            const st = await stat(p);
+            if (st.isDirectory()) {
+              await walk(p, r);
+            } else {
+              const buf = await readFile(p);
+              manifest[r] = createHash("sha256").update(buf).digest("hex");
+            }
+          }
+        };
+        await walk(dir, "");
+        return manifest;
+      };
+
+      console.log(chalk.gray(`  Computing source hashes...`));
+      const sourceManifest = await getManifest(cfg.vault_path);
+
       await cp(cfg.vault_path, stagingPath, { recursive: true });
       
+      console.log(chalk.gray(`  Verifying copy hashes...`));
+      const stagingManifest = await getManifest(stagingPath);
+
+      let mismatch = false;
+      for (const [k, v] of Object.entries(sourceManifest)) {
+         if (stagingManifest[k] !== v) {
+            mismatch = true;
+            break;
+         }
+      }
+
+      if (mismatch || Object.keys(sourceManifest).length !== Object.keys(stagingManifest).length) {
+         console.log(chalk.red(`✗ Copy verification failed (hash mismatch). Aborting.`));
+         await rm(stagingPath, { recursive: true, force: true });
+         return;
+      }
+      
       // Atomic promotion (only works if target doesn't exist, which we assume if it's new)
-      // If target exists, we'd need to rename it away first.
       if (existsSync(targetPath)) {
         console.log(chalk.yellow(`Target ${targetPath} already exists. Cannot safely copy over non-empty directory.`));
+        await rm(stagingPath, { recursive: true, force: true });
         return;
       }
-      import("node:fs/promises").then(({ rename }) => rename(stagingPath, targetPath));
-      console.log(chalk.green("✓ Vault copied."));
+      
+      await rename(stagingPath, targetPath);
+      console.log(chalk.green("✓ Vault safely copied and verified."));
     }
   } else if (existsSync(targetPath)) {
     import("node:fs").then(({ readdirSync }) => {

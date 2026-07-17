@@ -141,7 +141,7 @@ async function checkIntegrations(args: DoctorArgs) {
 
   // Antigravity
   const agv = await getVerifiedAntigravity(args.fix);
-  if (agv.status === "process_started" || agv.status === "operation_verified") {
+  if (agv.status === "transport_ready" || agv.status === "operation_verified") {
     checks.push({ name: "Antigravity", status: "PASS", detail: `${agv.status === "operation_verified" ? "Verified" : "Started"} (v${agv.installation?.version || "unknown"})` });
     checks.push({ name: "AG Protocol", status: "PASS", detail: "JSON Protocol Advertised" });
     
@@ -178,10 +178,12 @@ async function checkIntegrations(args: DoctorArgs) {
   // Obsidian
   const vp = cfg.vault_path;
   if (!vp || !existsSync(vp)) {
-    if (args.fix && vp) {
+    if (args.fix && vp && !args.json) {
       const { mkdir } = await import("node:fs/promises");
       await mkdir(vp, { recursive: true });
       checks.push({ name: "Obsidian Vault", status: "PASS", detail: "Path missing, created by fix" });
+    } else if (args.fix && vp && args.json) {
+      checks.push({ name: "Obsidian Vault", status: "action_required", action: "mkdir", detail: "Path missing, run fix without --json to create" });
     } else {
       checks.push({ name: "Obsidian Vault", status: "FAIL", detail: "Path missing or deleted" });
     }

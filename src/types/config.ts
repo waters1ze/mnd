@@ -27,7 +27,10 @@ export interface MndConfig {
       cached_executable_path: string | null;
       cached_version: string | null;
       last_verified_at: string | null;
-    };
+      executable_mtime_ms?: number;
+      executable_size?: number;
+      executable_sha256?: string;
+    } | null;
     // Deprecated in v2: antigravity_cli_path?: string;
     ollama_host: string;
   };

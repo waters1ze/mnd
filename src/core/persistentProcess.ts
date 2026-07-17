@@ -5,7 +5,7 @@ import {
   SpawnOptionsWithoutStdio,
 } from "node:child_process";
 import chalk from "chalk";
-import { registerProcess, unregisterProcess } from "./cancellation.js";
+import { registerProcess, unregisterProcess, terminateOwnedProcessTree } from "./cancellation.js";
 
 export interface PersistentProcessOptions {
   command: string;
@@ -24,7 +24,7 @@ interface QueueItem {
   enqueuedAt: number;
 }
 
-export type ProcessState = "stopped" | "starting" | "ready" | "busy" | "restarting";
+export type ProcessState = "stopped" | "starting" | "transport_ready" | "busy" | "restarting";
 
 export class PersistentProcess {
   private child: ChildProcess | null = null;
@@ -37,7 +37,7 @@ export class PersistentProcess {
   private currentItemStartedAt = 0;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private readonly opts: PersistentProcessOptions) {}
+  constructor(public readonly opts: PersistentProcessOptions) {}
 
   get name(): string {
     return this.opts.name ?? this.opts.command;
@@ -56,7 +56,7 @@ export class PersistentProcess {
   }
 
   async start(): Promise<void> {
-    if (this.state === "ready" || this.state === "starting") return;
+    if (this.state === "transport_ready" || this.state === "starting") return;
     this.state = "starting";
 
     await new Promise<void>((resolve, reject) => {
@@ -80,6 +80,23 @@ export class PersistentProcess {
 
       this.child.stdout?.on("data", (chunk: Buffer) => {
         this.stdoutBuffer += chunk.toString("utf8");
+        
+        if (this.state === "starting" && this.opts.readyPattern) {
+          const match = this.opts.readyPattern.exec(this.stdoutBuffer);
+          if (match) {
+            const afterMatch = match.index + match[0].length;
+            const nl = this.stdoutBuffer.indexOf("\n", afterMatch);
+            if (nl !== -1) {
+              this.stdoutBuffer = this.stdoutBuffer.slice(nl + 1);
+            } else {
+              this.stdoutBuffer = this.stdoutBuffer.slice(afterMatch);
+            }
+            this.state = "transport_ready";
+            this.startHealthCheck();
+            resolve();
+          }
+        }
+
         this.onStdout();
       });
 
@@ -106,24 +123,12 @@ export class PersistentProcess {
       });
 
       if (!this.opts.readyPattern) {
-        // No ready pattern — consider ready immediately
-        this.state = "ready";
+        // No ready pattern — consider transport available immediately
+        this.state = "transport_ready";
         this.startHealthCheck();
         resolve();
         return;
       }
-
-      // Wait for ready pattern in stdout
-      const onData = (chunk: Buffer): void => {
-        const text = chunk.toString();
-        if (this.opts.readyPattern!.test(text)) {
-          this.child?.stdout?.off("data", onData);
-          this.state = "ready";
-          this.startHealthCheck();
-          resolve();
-        }
-      };
-      this.child.stdout?.on("data", onData);
 
       // Timeout for readiness
       setTimeout(() => {
@@ -146,14 +151,19 @@ export class PersistentProcess {
     const newlineIdx = this.stdoutBuffer.indexOf("\n");
     if (newlineIdx === -1) return;
 
-    const line = this.stdoutBuffer.slice(0, newlineIdx);
+    const line = this.stdoutBuffer.slice(0, newlineIdx).trim();
     this.stdoutBuffer = this.stdoutBuffer.slice(newlineIdx + 1);
+
+    if (line === "") {
+      this.onStdout();
+      return;
+    }
 
     if (this.currentItem) {
       const item = this.currentItem;
       this.currentItem = null;
       this.busy = false;
-      this.state = "ready";
+      this.state = "transport_ready";
       item.resolve(line);
       // Process remaining buffer recursively
       this.onStdout();
@@ -162,7 +172,7 @@ export class PersistentProcess {
   }
 
   private processQueue(): void {
-    if (this.busy || this.queue.length === 0 || this.state !== "ready") return;
+    if (this.busy || this.queue.length === 0 || this.state !== "transport_ready") return;
     if (!this.child || this.child.exitCode !== null) {
       this.scheduleRestart();
       return;
@@ -179,7 +189,7 @@ export class PersistentProcess {
     } catch (err) {
       this.currentItem = null;
       this.busy = false;
-      this.state = "ready";
+      this.state = "transport_ready";
       item.reject(err);
       this.scheduleRestart();
     }
@@ -205,7 +215,7 @@ export class PersistentProcess {
       // Put stuck item back at front of queue for retry
       this.queue.unshift(stuck);
       this.busy = false;
-      this.child.kill("SIGKILL");
+      terminateOwnedProcessTree(this.child, { force: true }).catch(() => {});
       this.child = null;
       this.scheduleRestart();
     }
@@ -241,7 +251,7 @@ export class PersistentProcess {
       this.restartTimer = null;
     }
     if (this.child) {
-      try { this.child.kill("SIGKILL"); } catch { /* ignore */ }
+      terminateOwnedProcessTree(this.child, { force: true }).catch(() => {});
       this.child = null;
     }
     if (clearQueue) {

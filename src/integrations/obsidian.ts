@@ -8,11 +8,41 @@ import { getAppDataDir } from "../core/paths.js";
 import crypto from "node:crypto";
 import { Buffer } from "node:buffer";
 
+import { realpathSync, statSync } from "node:fs";
+
 export function normalizeVaultPath(p: string): string {
   let n = resolve(normalize(p));
-  if (n.endsWith("\\") || n.endsWith("/")) n = n.slice(0, -1);
+  if (n.length > 3 && (n.endsWith("\\") || n.endsWith("/"))) n = n.slice(0, -1);
   if (/^[a-zA-Z]:\\/.test(n)) n = n.charAt(0).toLowerCase() + n.slice(1);
+  if (n.startsWith("\\\\")) n = n.toLowerCase(); // UNC
   return n;
+}
+
+export function normalizeObsidianVaultInput(input: string): string {
+  // Strip quotes
+  let p = input.replace(/^["']+|["']+$/g, "");
+  
+  // Expand %VAR%
+  p = p.replace(/%([^%]+)%/g, (_, v) => process.env[v] || "");
+  
+  p = normalizeVaultPath(p);
+  
+  if (/^[a-zA-Z]:\\$/.test(p) || p === "\\" || p === "/") {
+    throw new Error("Cannot use the root of a drive as a vault");
+  }
+  
+  try {
+     const st = statSync(p);
+     if (!st.isDirectory()) {
+       throw new Error("Vault path must be a directory, not a file");
+     }
+     p = realpathSync(p);
+     p = normalizeVaultPath(p);
+  } catch (err: any) {
+     if (err.code !== "ENOENT") throw err;
+  }
+  
+  return p;
 }
 
 export async function getRegisteredVaultId(targetPath: string): Promise<string | null> {
@@ -156,7 +186,7 @@ export function openRegisteredVault(vaultId: string, homeNote: string = "Home"):
     import("node:child_process").then(({ spawn }) => {
       let proc;
       if (process.platform === "win32") {
-        proc = spawn("cmd.exe", ["/c", "start", "", uri], { detached: true, stdio: "ignore", windowsVerbatimArguments: true });
+        proc = spawn("explorer.exe", [uri], { detached: true, stdio: "ignore", shell: false });
       } else if (process.platform === "darwin") {
         proc = spawn("open", [uri], { detached: true, stdio: "ignore" });
       } else {
@@ -178,8 +208,10 @@ export function launchObsidianApp(): Promise<void> {
         resolveFn();
         return;
       }
-      import("node:child_process").then(({ exec }) => {
-        exec(`cmd /c start "" "obsidian://"`, (err) => (err ? rejectFn(err) : resolveFn()));
+      import("node:child_process").then(({ spawn }) => {
+        const proc = spawn("explorer.exe", ["obsidian://"], { detached: true, stdio: "ignore", shell: false });
+        proc.unref();
+        resolveFn();
       });
     } else {
       import("node:child_process").then(({ exec }) => {

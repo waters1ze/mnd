@@ -26,7 +26,7 @@ async function getProcess(): Promise<PersistentProcess> {
   const verifyResult = await getVerifiedAntigravity(false);
   const cliPath = verifyResult.installation?.executablePath;
 
-  if ((verifyResult.status !== "operation_verified" && verifyResult.status !== "process_started") || !cliPath) {
+  if ((verifyResult.status !== "operation_verified" && verifyResult.status !== "transport_ready") || !cliPath) {
     throw new Error("Antigravity CLI is not verified or not configured.");
   }
 
@@ -47,16 +47,41 @@ export function getAntigravityStatus(): ReturnType<PersistentProcess["getStatus"
   return _process?.getStatus() ?? { alive: false, queueLength: 0, state: "stopped" };
 }
 
-function recordCapabilityVerified(capability: "classification" | "thumbnail" | "imageGeneration") {
-  getVerifiedAntigravity(false).then((result) => {
-    if (result.status === "process_started" || result.status === "operation_verified") {
-      result.status = "operation_verified";
-      if (result.installation) {
-        result.installation.stage = "operation_verified";
-        result.installation.verifiedCapabilities[capability] = { verifiedAt: new Date().toISOString() };
-      }
+import { updateConfigField } from "./config.js";
+import { statSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+
+async function recordCapabilityVerified(capability: "classification" | "thumbnail" | "imageGeneration", executablePath: string): Promise<void> {
+  let mtime_ms = 0;
+  let size = 0;
+  let sha256 = "";
+  try {
+     const st = statSync(executablePath);
+     mtime_ms = st.mtimeMs;
+     size = st.size;
+     const fileBuffer = readFileSync(executablePath);
+     const hashSum = createHash('sha256');
+     hashSum.update(fileBuffer);
+     sha256 = hashSum.digest('hex');
+  } catch {}
+
+  const result = await getVerifiedAntigravity(false);
+  if (result.status === "transport_ready" || result.status === "operation_verified") {
+    result.status = "operation_verified";
+    if (result.installation) {
+      result.installation.stage = "operation_verified";
+      result.installation.verifiedCapabilities[capability] = { verifiedAt: new Date().toISOString() };
     }
-  }).catch(() => {});
+  }
+
+  await updateConfigField(c => {
+    if (c.connections.antigravity) {
+       c.connections.antigravity.executable_mtime_ms = mtime_ms;
+       c.connections.antigravity.executable_size = size;
+       c.connections.antigravity.executable_sha256 = sha256;
+       c.connections.antigravity.last_verified_at = new Date().toISOString();
+    }
+  });
 }
 
 export async function classifyAsset(filePath: string): Promise<AssetClassification> {
@@ -69,8 +94,11 @@ export async function classifyAsset(filePath: string): Promise<AssetClassificati
   const req = JSON.stringify({ action: "classify", payload: { filePath } });
   const resp = await proc.send(req);
   const parsed = JSON.parse(resp) as AssetClassification;
+  if (!parsed || typeof parsed.type !== "string" || !Array.isArray(parsed.tags)) {
+    throw new Error("Invalid response format from Antigravity: missing type or tags");
+  }
   
-  recordCapabilityVerified("classification");
+  await recordCapabilityVerified("classification", proc.opts.command);
   return parsed;
 }
 
@@ -91,8 +119,11 @@ export async function generateThumbnail(spec: ThumbnailSpec): Promise<string> {
   const req = JSON.stringify({ action: "thumbnail", payload });
   const resp = await proc.send(req);
   const parsed = JSON.parse(resp) as { outputPath: string };
+  if (!parsed || typeof parsed.outputPath !== "string") {
+    throw new Error("Invalid response format from Antigravity: missing outputPath");
+  }
   
-  recordCapabilityVerified("thumbnail");
+  await recordCapabilityVerified("thumbnail", proc.opts.command);
   return parsed.outputPath;
 }
 
@@ -113,8 +144,11 @@ export async function generateImage(prompt: string): Promise<string> {
   const req = JSON.stringify({ action: "generate_image", payload });
   const resp = await proc.send(req);
   const parsed = JSON.parse(resp) as { outputPath: string };
+  if (!parsed || typeof parsed.outputPath !== "string") {
+    throw new Error("Invalid response format from Antigravity: missing outputPath");
+  }
   
-  recordCapabilityVerified("imageGeneration");
+  await recordCapabilityVerified("imageGeneration", proc.opts.command);
   return parsed.outputPath;
 }
 

@@ -73,7 +73,7 @@ describe("PersistentProcess", () => {
     });
 
     await proc.start();
-    expect(proc.getStatus().state).toBe("ready");
+    expect(proc.getStatus().state).toBe("transport_ready");
     expect(proc.getStatus().alive).toBe(true);
   });
 
@@ -94,7 +94,7 @@ describe("PersistentProcess", () => {
     }, 10);
 
     await startPromise;
-    expect(proc.getStatus().state).toBe("ready");
+    expect(proc.getStatus().state).toBe("transport_ready");
   });
 
   test("send() queues request and resolves on stdout response", async () => {
@@ -167,7 +167,7 @@ describe("PersistentProcess", () => {
     // In this test we just check state transitions occurred
     const status = proc.getStatus();
     // Process should have restarted at some point
-    expect(["ready", "restarting", "starting", "busy"]).toContain(status.state);
+    expect(["transport_ready", "restarting", "starting", "busy"]).toContain(status.state);
 
     // Clean up
     proc.stop();

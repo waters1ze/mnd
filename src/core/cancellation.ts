@@ -4,6 +4,63 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(cp.execFile);
 
+export async function terminateOwnedProcessTree(
+  child: ChildProcess,
+  options?: { force?: boolean; timeoutMs?: number }
+): Promise<void> {
+  const pid = child.pid;
+  if (!pid) return;
+
+  const force = options?.force ?? false;
+  const timeoutMs = options?.timeoutMs ?? 2000;
+
+  if (process.platform === "win32") {
+    try {
+      await execFileAsync("taskkill.exe", ["/PID", String(pid), "/T", "/F"]);
+    } catch {}
+    return;
+  }
+
+  try {
+    child.kill(force ? "SIGKILL" : "SIGTERM");
+  } catch {}
+
+  if (force) return;
+
+  // Wait to see if it exits
+  await new Promise<void>((resolve) => {
+    let timer: NodeJS.Timeout;
+    
+    const onExit = () => {
+      clearTimeout(timer);
+      child.removeListener("exit", onExit);
+      child.removeListener("error", onError);
+      resolve();
+    };
+    
+    const onError = () => {
+      clearTimeout(timer);
+      child.removeListener("exit", onExit);
+      child.removeListener("error", onError);
+      resolve();
+    };
+
+    timer = setTimeout(() => {
+      child.removeListener("exit", onExit);
+      child.removeListener("error", onError);
+      try {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill("SIGKILL");
+        }
+      } catch {}
+      resolve();
+    }, timeoutMs);
+
+    child.on("exit", onExit);
+    child.on("error", onError);
+  });
+}
+
 export interface TrackedProcess {
   pid: number;
   kind: "ffmpeg" | "ffprobe" | "python" | "antigravity";
@@ -54,31 +111,11 @@ export async function terminateAllOwnedProcesses(): Promise<void> {
   const owned = processRegistry.filter(p => p.ownedByRun);
   if (owned.length === 0) return;
 
-  // 1. Graceful termination
   for (const proc of owned) {
     if (proc.fluentCommand && typeof proc.fluentCommand.kill === "function") {
       try { proc.fluentCommand.kill("SIGTERM"); } catch {}
     } else {
-      try { proc.process.kill("SIGTERM"); } catch {}
-    }
-  }
-
-  // 2. Wait up to 3 seconds for them to exit
-  await new Promise(resolve => setTimeout(resolve, 3000));
-
-  // 3. Force kill any remaining
-  for (const proc of owned) {
-    if (proc.process.exitCode === null && proc.process.signalCode === null) {
-      try {
-        if (process.platform === "win32") {
-          // Windows process tree kill fallback
-          await execFileAsync("taskkill", ["/PID", proc.pid.toString(), "/T", "/F"]);
-        } else {
-          proc.process.kill("SIGKILL");
-        }
-      } catch (e) {
-        // Process might already be dead or access denied
-      }
+      await terminateOwnedProcessTree(proc.process);
     }
   }
 }

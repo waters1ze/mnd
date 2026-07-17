@@ -10,7 +10,7 @@ export type AntigravityVerificationStage =
   | "not_found"
   | "identity_verified"
   | "protocol_advertised"
-  | "process_started"
+  | "transport_ready"
   | "operation_verified"
   | "unsupported"
   | "error";
@@ -126,22 +126,33 @@ export async function verifyCandidate(candidate: string): Promise<{
   // Protocol Advertised
   // Now bounded runtime smoke check
   const smokeCheck = await new Promise<boolean>((resolve) => {
-    const proc = spawn(candidate, ["--non-interactive", "--json-io"], { stdio: "ignore" });
+    const proc = spawn(candidate, ["--non-interactive", "--json-io"], { stdio: ["pipe", "pipe", "pipe"] });
     let isAlive = true;
+    let timer: NodeJS.Timeout;
+    
+    const cleanup = () => {
+       clearTimeout(timer);
+       try { proc.stdin?.end(); } catch {}
+       import("../core/cancellation.js").then(({ terminateOwnedProcessTree }) => {
+          terminateOwnedProcessTree(proc, { force: true }).catch(() => {});
+       });
+    };
     
     proc.on("error", () => {
       isAlive = false;
+      cleanup();
       resolve(false);
     });
     
     proc.on("exit", () => {
       isAlive = false;
+      cleanup();
       resolve(false);
     });
     
-    setTimeout(() => {
+    timer = setTimeout(() => {
       if (isAlive) {
-        proc.kill("SIGKILL");
+        cleanup();
         resolve(true);
       }
     }, 2000);
@@ -149,7 +160,7 @@ export async function verifyCandidate(candidate: string): Promise<{
 
   if (smokeCheck) {
     const verString = version.split("\n")[0];
-    return { stage: "process_started", ...(verString ? { version: verString } : {}), capabilities: [], models: [], reason: "Protocol advertised, runtime operation not yet verified." };
+    return { stage: "transport_ready", ...(verString ? { version: verString } : {}), capabilities: [], models: [], reason: "Protocol advertised, runtime transport ready." };
   } else {
     return { stage: "protocol_advertised", capabilities: [], models: [], reason: "Process failed to start or crashed immediately." };
   }
@@ -224,7 +235,7 @@ export function discoverAntigravityCli(): Promise<AntigravityDiscoveryResult> {
         const res = await verifyCandidate(p);
         checkedCandidates.push({ path: p, source, result: res.stage === "error" ? res.reason || "error" : res.stage });
         
-        if (res.stage === "process_started" || res.stage === "operation_verified") {
+        if (res.stage === "transport_ready" || res.stage === "operation_verified") {
           const inst: AntigravityInstallation = {
             executablePath: p,
             ...(res.version ? { version: res.version } : {}),
@@ -291,10 +302,10 @@ export async function getVerifiedAntigravity(forceRescan = false): Promise<Antig
 
 export async function ensureAntigravityCli(): Promise<boolean> {
   const result = await getVerifiedAntigravity();
-  if (result.status === "process_started" || result.status === "operation_verified") {
+  if (result.status === "transport_ready" || result.status === "operation_verified") {
     console.log(chalk.green(`✓ Antigravity found: ${result.installation?.executablePath}`));
-    if (result.status === "process_started") {
-      console.log(chalk.yellow(`  Protocol advertised, runtime operation not yet verified.`));
+    if (result.status === "transport_ready") {
+      console.log(chalk.yellow(`  Protocol advertised, transport ready, but operations not yet verified.`));
     }
     return true;
   }

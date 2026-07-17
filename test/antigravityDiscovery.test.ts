@@ -20,7 +20,7 @@ jest.mock("node:child_process", () => ({
     }
     
     // Simulate real behavior based on test state
-    if (cmd.includes("antigravity.exe")) {
+    if (cmd.includes("antigravity")) {
       const mode = (global as any).__mockAntigravityMode || "normal";
       
       if (mode === "not_antigravity") {
@@ -82,37 +82,39 @@ describe("antigravityDiscovery", () => {
     const p2 = discoverAntigravityCli();
     expect(p1).toBe(p2);
     const res = await p1;
-    expect(res.status).toBe("process_started");
+    expect(res.status).toBe("transport_ready");
   });
 
   it("verifies protocol via --help and starts process", async () => {
     const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("process_started");
+    expect(res.status).toBe("transport_ready");
   });
 
   it("fails if not antigravity", async () => {
     (global as any).__mockAntigravityMode = "not_antigravity";
     const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("unsupported");
+    expect(res.status).toBe("not_found");
+    expect(res.installation?.verifiedCapabilities).toBeUndefined();
   });
 
-  it("unsupported if no json-io", async () => {
+  it("fails if protocol missing", async () => {
     (global as any).__mockAntigravityMode = "no_json";
     const res = await getVerifiedAntigravity(true);
     expect(res.status).toBe("unsupported");
+    expect(res.installation?.verifiedCapabilities).toBeUndefined();
   });
 
   it("supports reading from stderr", async () => {
     (global as any).__mockAntigravityMode = "stderr";
     const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("process_started");
+    expect(res.status).toBe("transport_ready");
   });
 
   it("fails smoke check if process crashes immediately", async () => {
     (global as any).__mockAntigravityMode = "normal";
     (global as any).__mockAntigravitySmoke = "crash";
     const res = await getVerifiedAntigravity(true);
-    // Since it doesn't return process_started, the discovery loop finishes and reports not_found
-    expect(res.status).toBe("unsupported");
+    // Since it doesn't return transport_ready, the discovery loop finishes and reports not_found
+    expect(res.status).toBe("not_found");
   });
 });

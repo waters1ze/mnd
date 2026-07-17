@@ -139,7 +139,7 @@ export function ConfigScreen(): React.ReactElement {
         return;
       }
 
-      if (field.kind === "select" || field.kind === "boolean" || field.kind === "model") {
+      if (field.kind === "select" || field.kind === "boolean" || field.kind === "model" || field.kind === "antigravity") {
         if (key.upArrow) {
           setOptionIdx(i => Math.max(0, i - 1));
         } else if (key.downArrow) {
@@ -154,6 +154,10 @@ export function ConfigScreen(): React.ReactElement {
             }
             if (selected.availability === "not_installed" && selected.local) {
               setPullingModel(selected.value);
+              return;
+            }
+            if (field.kind === "antigravity") {
+              setEditing(false); // just close diagnostics
               return;
             }
             let val: any = selected.value;
@@ -243,7 +247,7 @@ export function ConfigScreen(): React.ReactElement {
         
         if (field.provider === "antigravity") {
           let opts: Option[] = [];
-          if (agvStatus?.status === "operation_verified" || agvStatus?.status === "process_started") {
+          if (agvStatus?.status === "operation_verified" || agvStatus?.status === "transport_ready") {
              opts.push({ value: "", label: "Auto / Antigravity default", availability: "available", local: true });
              if (agvStatus.installation?.models && agvStatus.installation.models.length > 0) {
                agvStatus.installation.models.forEach(m => opts.push({ value: m.id, label: m.id, availability: "available", local: true }));
@@ -254,7 +258,7 @@ export function ConfigScreen(): React.ReactElement {
           if (!opts.find(o => o.value === cur) && cur) {
              opts.push({ value: cur, label: `${cur} (unverified)`, availability: "unknown", local: true });
           }
-          if (agvStatus?.status === "operation_verified" || agvStatus?.status === "process_started") {
+          if (agvStatus?.status === "operation_verified" || agvStatus?.status === "transport_ready") {
              if (agvStatus.installation?.models && agvStatus.installation.models.length > 0) {
                  opts.push({value: "__custom__", label: "Custom model ID..."});
              }
@@ -336,32 +340,10 @@ export function ConfigScreen(): React.ReactElement {
               if (customModelMode) {
                 return `${prefix}${f.label}: ${editBuffer}█ ${editError ? chalk.red(`(${editError})`) : ""}`;
               } else if (f.kind === "model") {
-                // Return a special placeholder, we will render a Box outside the standard lines array if we were rendering manually, 
-                // but since renderFocusableBox expects strings, we can inline a vertical list using newlines!
-                // Wait, renderFocusableBox takes `string[]`. If we put newlines in a string, renderFocusableBox might break its border drawing if it counts lines by array length.
-                // It's better to push multiple lines into the array.
                 return `${prefix}${f.label}:`;
-              } else if (f.kind === "antigravity") {
-                if (agvScanning) return `${prefix}Antigravity: detecting...`;
-                if (!agvStatus) return `${prefix}Antigravity: Loading...`;
-                let st = agvStatus.status;
-                if (st === "operation_verified" || st === "process_started") return [
-                  `${prefix}Antigravity: ${st === "operation_verified" ? "✓ Verified" : "⚠ Started"}`,
-                  `      Version: ${agvStatus.installation?.version || "unknown"}`,
-                  `      Location: ${agvStatus.installation?.executablePath}`,
-                  `      [Enter] Select model  [R] Rescan  [D] Diagnostics`
-                ].join("\n");
-                if (st === "unsupported") return [
-                  `${prefix}Antigravity: ✗ Application found but CLI protocol unavailable`,
-                  `      [R] Rescan  [D] Diagnostics`
-                ].join("\n");
-                return [
-                  `${prefix}Antigravity: ✗ Not found`,
-                  `      [R] Rescan  [D] Diagnostics`
-                ].join("\n");
-              } else if (f.kind === "select" || f.kind === "boolean") {
-                const optStr = options.map((o, idx) => idx === optionIdx ? chalk.bgHex(theme.accent).black(` ${o.label} `) : ` ${o.label} `).join(" | ");
-                return `${prefix}${f.label}: ${optStr}`;
+              } else if (f.kind === "select" || f.kind === "boolean" || f.kind === "antigravity") {
+                const optLines = options.map((o, idx) => idx === optionIdx ? chalk.bgHex(theme.accent).black(`    > ${o.label} `) : `      ${o.label} `);
+                return [`${prefix}${f.label}:`, ...optLines].join("\n");
               } else {
                 return `${prefix}${f.label}: ${editBuffer}█ ${editError ? chalk.red(`(${editError})`) : ""}`;
               }
@@ -370,7 +352,7 @@ export function ConfigScreen(): React.ReactElement {
                 if (agvScanning) return `${prefix}Antigravity: detecting...`;
                 if (!agvStatus) return `${prefix}Antigravity: Loading...`;
                 let st = agvStatus.status;
-                if (st === "operation_verified" || st === "process_started") return [
+                if (st === "operation_verified" || st === "transport_ready") return [
                   `${prefix}Antigravity: ${st === "operation_verified" ? "✓ Verified" : "⚠ Started"}`,
                   `      Version: ${agvStatus.installation?.version || "unknown"}`,
                   `      Location: ${agvStatus.installation?.executablePath}`,

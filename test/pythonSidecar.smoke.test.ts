@@ -60,7 +60,7 @@ describe("Python sidecar smoke test", () => {
 
     await proc.start();
     expect(proc.getStatus().alive).toBe(true);
-    expect(proc.getStatus().state).toBe("ready");
+    expect(proc.getStatus().state).toBe("transport_ready");
   }, 30_000);
 
   (SKIP ? test.skip : test)("responds to ping action with valid JSON", async () => {

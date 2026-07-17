@@ -12,7 +12,8 @@ jest.mock("../src/core/config.js", () => ({
         }
       }
     };
-  })
+  }),
+  updateConfigField: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock("../src/integrations/antigravityDiscovery.js", () => ({
@@ -26,7 +27,8 @@ let sentPayload: string | null = null;
 
 jest.mock("../src/core/persistentProcess.js", () => {
   return {
-    PersistentProcess: jest.fn().mockImplementation(() => ({
+    PersistentProcess: jest.fn().mockImplementation((opts) => ({
+      opts,
       start: jest.fn().mockResolvedValue(undefined),
       stop: jest.fn(),
       send: jest.fn().mockImplementation(async (req) => {
