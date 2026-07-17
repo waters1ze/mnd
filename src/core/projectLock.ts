@@ -96,6 +96,9 @@ export async function acquireProjectLock(vaultPath: string, slug: string, runId:
   }
 
   try {
+    const { dirname } = require("node:path");
+    const { mkdir } = require("node:fs/promises");
+    await mkdir(dirname(paths.lockJson), { recursive: true });
     const handle = await open(paths.lockJson, "wx");
     try {
       await handle.writeFile(JSON.stringify(lockData, null, 2), "utf-8");

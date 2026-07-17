@@ -47,6 +47,11 @@ jest.mock("node:child_process", () => ({
     mockProcess = createMockProcess();
     return mockProcess;
   }),
+  execFile: jest.fn((cmd, args, opts, cb) => {
+    if (typeof cb === "function") cb(null, "mocked", "");
+    else if (typeof opts === "function") opts(null, "mocked", "");
+    return { on: jest.fn() };
+  }),
 }));
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

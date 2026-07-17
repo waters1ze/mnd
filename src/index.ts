@@ -86,6 +86,11 @@ async function main(): Promise<void> {
   const { runVaultMigrations } = await import("./core/migrations.js");
   await runVaultMigrations(vaultPath);
 
+  // Background fetch model catalog so it's fresh when needed later
+  import("./models/modelCatalog.js").then(({ refreshCatalog }) => {
+    refreshCatalog().catch(() => {});
+  }).catch(() => {});
+
   // Register all commands
   registerCommands([
     { name: "config", handler: handleConfig },

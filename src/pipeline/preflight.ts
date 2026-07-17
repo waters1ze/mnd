@@ -14,7 +14,18 @@ export async function runAnalyzePreflight(vaultPath: string, slug: string, optio
 
   console.log(chalk.blue(`\n[PREFLIGHT] Starting preflight checks for project '${slug}'...`));
 
-  // 1. Check layout and immutable raw directory
+  // 1. Check config
+  const config = await loadConfig();
+  const profileName = options.profile || config.profile || "local";
+  if (profileName !== "hybrid" && profileName !== "local") {
+    throw new Error(`Preflight failed: unsupported configuration profile '${profileName}'.`);
+  }
+  const profile = config.models?.[profileName as "hybrid" | "local"];
+  if (!profile) {
+    throw new Error(`Preflight failed: Profile '${profileName}' not found in configuration.`);
+  }
+
+  // 2. Check layout and immutable raw directory
   if (!existsSync(paths.rawDir)) {
     throw new Error(`Preflight failed: raw directory missing at ${paths.rawDir}`);
   }
@@ -22,15 +33,7 @@ export async function runAnalyzePreflight(vaultPath: string, slug: string, optio
   const rawFiles = await readdir(paths.rawDir);
   const mediaFiles = rawFiles.filter(f => f.endsWith(".mp4") || f.endsWith(".mov"));
   if (mediaFiles.length === 0) {
-    throw new Error(`Preflight failed: no .mp4 or .mov files found in raw directory.`);
-  }
-
-  // 2. Check config
-  const config = await loadConfig();
-  const profileName = options.profile || config.profile || "local";
-  const profile = config.models?.[profileName as "hybrid" | "local"];
-  if (!profile) {
-    throw new Error(`Preflight failed: Profile '${profileName}' not found in configuration.`);
+    throw new Error(`Preflight failed: no valid media files found in raw directory.`);
   }
 
   // 3. Check providers based on profile

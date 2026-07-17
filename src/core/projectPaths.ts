@@ -94,3 +94,39 @@ export function getProjectPaths(vaultPath: string, slug: string): ProjectPaths {
 
   return paths;
 }
+
+export async function isProjectFolder(folderPath: string): Promise<boolean> {
+  const { stat } = await import("node:fs/promises");
+  try {
+    const s = await stat(folderPath);
+    if (!s.isDirectory()) return false;
+    const s2 = await stat(join(folderPath, "project.md"));
+    return s2.isFile();
+  } catch {
+    return false;
+  }
+}
+
+export async function analyzeProjectFlags(folderPath: string): Promise<{hasRawMedia: boolean, hasValidPlan: boolean, hasValidExport: boolean}> {
+  const { readdir, stat } = await import("node:fs/promises");
+  
+  let hasRawMedia = false;
+  try {
+    const files = await readdir(join(folderPath, "raw"));
+    hasRawMedia = files.length > 0;
+  } catch {}
+
+  let hasValidPlan = false;
+  try {
+    const s = await stat(join(folderPath, "exports", "edit-plan.json"));
+    hasValidPlan = s.isFile();
+  } catch {}
+
+  let hasValidExport = false;
+  try {
+    const s = await stat(join(folderPath, "exports", "timeline.fcpxml"));
+    hasValidExport = s.isFile();
+  } catch {}
+
+  return { hasRawMedia, hasValidPlan, hasValidExport };
+}

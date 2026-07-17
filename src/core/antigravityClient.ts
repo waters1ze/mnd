@@ -18,6 +18,7 @@ export interface ThumbnailSpec {
   title: string;
   style: string;
   keyframePath?: string;
+  plan?: string;
 }
 
 async function getProcess(): Promise<PersistentProcess> {

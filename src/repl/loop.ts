@@ -87,7 +87,52 @@ export async function startRepl(): Promise<void> {
     }
 
     try {
+      // 1. Build and update context
+      const { resolveVaultPath, loadConfig } = await import("../core/config.js");
+      const { isProjectFolder, analyzeProjectFlags } = await import("../core/projectPaths.js");
+      const { discoverAntigravityCli } = await import("../integrations/antigravityDiscovery.js");
+      const { updateCommandContext, COMMAND_REGISTRY, parseInput } = await import("./router.js");
+      
+      const cfg = await loadConfig();
+      const vaultPath = resolveVaultPath(cfg);
+
+      let projectCtx: any = undefined;
+      if (session.currentProjectSlug) {
+        const pPath = (await import("node:path")).join(vaultPath, "Projects", session.currentProjectSlug);
+        const isProj = await isProjectFolder(pPath);
+        if (isProj) {
+          const flags = await analyzeProjectFlags(pPath);
+          projectCtx = {
+            slug: session.currentProjectSlug,
+            hasRawMedia: flags.hasRawMedia,
+            pipelineStatus: "unknown",
+            hasValidPlan: flags.hasValidPlan,
+            hasValidExport: flags.hasValidExport
+          };
+        }
+      }
+
+      const agReady = await discoverAntigravityCli(cfg.connections.antigravity_cli_path) ? "ready" : "missing";
+
+      updateCommandContext({
+        project: projectCtx,
+        services: {
+          groq: cfg.connections.groq_api_key_ref ? "ready" : "offline", // simplistic
+          ollama: "unknown", // could query /api/tags if fast enough
+          antigravity: agReady,
+          obsidian: cfg.vault_path ? "ready" : "setup_required"
+        }
+      });
+
+      // 2. Route
       await route(trimmed);
+
+      // 3. Save to history
+      const { appendHistory } = await import("./history.js");
+      const parsed = parseInput(trimmed);
+      const cmdDef = COMMAND_REGISTRY.find(c => c.name === parsed.firstWord || (c.aliases && c.aliases.includes(parsed.firstWord)) || parsed.fullCommand === c.name);
+      await appendHistory(trimmed, cmdDef?.sensitive);
+
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(chalk.red(`Error: ${msg}`));

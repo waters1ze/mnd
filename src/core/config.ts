@@ -8,6 +8,7 @@ import type { MndConfig, ProfileModels } from "../types/config.js";
 import { REQUIRED_LOCAL_MODELS } from "./ollamaBootstrap.js";
 
 import { getAppDataDir } from "./paths.js";
+export { getAppDataDir };
 
 const CONFIG_DIR = getAppDataDir();
 const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");

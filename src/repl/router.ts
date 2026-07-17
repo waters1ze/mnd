@@ -12,6 +12,35 @@ export interface CommandEntry {
   handler: CommandHandler;
 }
 
+export interface CommandAvailability {
+  enabled: boolean;
+  reason?: string;
+  suggestedActions?: string[];
+}
+
+export interface CommandContext {
+  project?: {
+    slug: string;
+    hasRawMedia: boolean;
+    pipelineStatus: string;
+    hasValidPlan: boolean;
+    hasValidExport: boolean;
+  };
+  services: {
+    groq: "ready" | "offline" | "unknown";
+    ollama: "ready" | "offline" | "unknown";
+    antigravity: "ready" | "missing" | "unknown";
+    obsidian: "ready" | "setup_required" | "unknown";
+  };
+}
+
+export function avail(enabled: boolean, reason?: string, suggestedActions?: string[]): CommandAvailability {
+  const res: CommandAvailability = { enabled };
+  if (reason !== undefined) res.reason = reason;
+  if (suggestedActions !== undefined) res.suggestedActions = suggestedActions;
+  return res;
+}
+
 export type CommandDefinition = {
   name: string;
   slash: string;
@@ -20,31 +49,42 @@ export type CommandDefinition = {
   acceptsArgs: boolean;
   aliases?: string[];
   handler?: CommandHandler;
+  availability?: (ctx: CommandContext) => CommandAvailability;
+  sensitive?: boolean;
 };
+
+// We will construct this context once per prompt in the loop.
+export let CURRENT_CONTEXT: CommandContext = {
+  services: { groq: "unknown", ollama: "unknown", antigravity: "unknown", obsidian: "unknown" }
+};
+
+export function updateCommandContext(ctx: CommandContext) {
+  CURRENT_CONTEXT = ctx;
+}
 
 export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "open", slash: "/open", icon: "▸", description: "Open an existing project", acceptsArgs: true },
   { name: "create", slash: "/create", icon: "+", description: "Create a new project", acceptsArgs: true },
-  { name: "sort", slash: "/sort", icon: "⇄", description: "Sort and tag raw assets", acceptsArgs: false },
-  { name: "analyze", slash: "/analyze", icon: "◈", description: "Run the AI analysis pipeline", acceptsArgs: false },
-  { name: "prompt", slash: "/prompt", icon: "✎", description: "Edit the edit plan with a text instruction", acceptsArgs: true },
-  { name: "approve", slash: "/approve", icon: "✓", description: "Export the approved plan to .fcpxml", acceptsArgs: false },
-  { name: "fix", slash: "/fix", icon: "⚒", description: "Fix a described error in the last run", acceptsArgs: true },
-  { name: "show history", slash: "/show history", icon: "⏱", description: "Show project run history", acceptsArgs: false },
-  { name: "full", slash: "/full", icon: "↻", description: "Full cycle: new or show", acceptsArgs: true },
-  { name: "thumbnail", slash: "/thumbnail", icon: "▣", description: "Generate a thumbnail (--full/--layers)", acceptsArgs: true },
+  { name: "sort", slash: "/sort", icon: "⇄", description: "Sort and tag raw assets", acceptsArgs: false, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined, !ctx.project ? ["/open", "/create"] : undefined) },
+  { name: "analyze", slash: "/analyze", icon: "◈", description: "Run the AI analysis pipeline", acceptsArgs: false, availability: ctx => avail(!!ctx.project && !!ctx.project?.hasRawMedia, !ctx.project ? "No project is open" : (!ctx.project.hasRawMedia ? "No valid media exists" : undefined), !ctx.project ? ["/open", "/create"] : undefined) },
+  { name: "prompt", slash: "/prompt", icon: "✎", description: "Edit the edit plan with a text instruction", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
+  { name: "approve", slash: "/approve", icon: "✓", description: "Export the approved plan to .fcpxml", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidPlan, !ctx.project?.hasValidPlan ? "No completed valid plan" : undefined) },
+  { name: "fix", slash: "/fix", icon: "⚒", description: "Fix a described error in the last run", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
+  { name: "show history", slash: "/show history", icon: "⏱", description: "Show project run history", acceptsArgs: false, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
+  { name: "full", slash: "/full", icon: "↻", description: "Full cycle: new or show", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
+  { name: "thumbnail", slash: "/thumbnail", icon: "▣", description: "Generate a thumbnail (--full/--layers)", acceptsArgs: true, availability: ctx => avail(!!ctx.project && ctx.services.antigravity === "ready", !ctx.project ? "No project is open" : (ctx.services.antigravity !== "ready" ? "Antigravity not verified" : undefined), ctx.services.antigravity !== "ready" ? ["/doctor", "/config"] : undefined) },
   { name: "refactor", slash: "/refactor", icon: "⟲", description: "Refactor a vault rule", acceptsArgs: true },
   { name: "rules review", slash: "/rules review", icon: "☰", description: "Review global rules", acceptsArgs: false },
   { name: "status", slash: "/status", icon: "●", description: "Show current project/profile status", acceptsArgs: false },
-  { name: "config", slash: "/config", icon: "⚙", description: "Open the settings screen", acceptsArgs: false },
+  { name: "config", slash: "/config", icon: "⚙", description: "Open the settings screen", acceptsArgs: false }, // not sensitive
   { name: "obsidian", slash: "/obsidian", icon: "◆", description: "Open the vault in Obsidian", acceptsArgs: false },
-  { name: "backup", slash: "/backup", icon: "💾", description: "Backup config or project", acceptsArgs: true },
-  { name: "restore", slash: "/restore", icon: "⏪", description: "Restore config or project", acceptsArgs: true },
+  { name: "backup", slash: "/backup", icon: "💾", description: "Backup config or project", acceptsArgs: true, sensitive: true },
+  { name: "restore", slash: "/restore", icon: "⏪", description: "Restore config or project", acceptsArgs: true, sensitive: true },
   { name: "logs", slash: "/logs", icon: "🖹", description: "View system or project logs", acceptsArgs: true },
   { name: "doctor", slash: "/doctor", icon: "🩺", description: "Run diagnostics", acceptsArgs: true },
-  { name: "export validate", slash: "/export validate", icon: "✔", description: "Validate the timeline FCPXML", acceptsArgs: false },
-  { name: "export reveal", slash: "/export reveal", icon: "📂", description: "Reveal the exported FCPXML file", acceptsArgs: false },
-  { name: "export retry", slash: "/export retry", icon: "🔁", description: "Regenerate FCPXML from last plan", acceptsArgs: false },
+  { name: "export validate", slash: "/export validate", icon: "✔", description: "Validate the timeline FCPXML", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidExport, !ctx.project?.hasValidExport ? "No export exists" : undefined) },
+  { name: "export reveal", slash: "/export reveal", icon: "📂", description: "Reveal the exported FCPXML file", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidExport, !ctx.project?.hasValidExport ? "No export exists" : undefined) },
+  { name: "export retry", slash: "/export retry", icon: "🔁", description: "Regenerate FCPXML from last plan", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidPlan, !ctx.project?.hasValidPlan ? "No completed valid plan" : undefined) },
 ];
 
 // Multi-word commands (matched by prefix)

@@ -1,8 +1,8 @@
 import type { ChildProcess } from "node:child_process";
-import { execFile } from "node:child_process";
+import cp from "node:child_process";
 import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
+const execFileAsync = promisify(cp.execFile);
 
 export interface TrackedProcess {
   pid: number;

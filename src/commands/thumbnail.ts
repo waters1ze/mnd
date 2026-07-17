@@ -31,12 +31,22 @@ export const handleThumbnail: CommandHandler = async (args) => {
     console.log(chalk.gray("Generating thumbnail (full auto)..."));
     const { readFrontmatter } = await import("../core/vault.js");
     const { join } = await import("node:path");
+    const { readFile } = await import("node:fs/promises");
+    
     const { data } = await readFrontmatter(join(vaultPath, "Projects", slug, "project.md"));
     const fm = data as { style?: string; title?: string };
+
+    let planContent: string | undefined;
+    try {
+      planContent = await readFile(join(vaultPath, "Projects", slug, "edit_plan.json"), "utf8");
+    } catch {
+      // Ignored if missing
+    }
 
     const outputPath = await generateThumbnail({
       title: fm.title ?? slug,
       style: fm.style ?? "default",
+      ...(planContent ? { plan: planContent } : {})
     });
     console.log(chalk.hex(theme.accent)(`✓ Thumbnail generated: ${outputPath}`));
 

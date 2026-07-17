@@ -5,9 +5,11 @@ import chalk from "chalk";
 import { loadConfig, saveConfig, invalidateConfigCache } from "../core/config.js";
 import { renderFocusableBox, createFocusTransition } from "./focusFrame.js";
 import { theme } from "./theme.js";
-import { pad, box, HEAVY } from "./box.js";
+import { pad, HEAVY } from "./box.js";
 import type { MndConfig } from "../types/config.js";
-import { isOllamaInstalled, listPulledModels, getInstallInstructions } from "../core/ollamaBootstrap.js";
+import { getModelCatalog } from "../models/modelCatalog.js";
+import type { DiscoveredModel } from "../models/types.js";
+import { OllamaPullProgress } from "./OllamaPullProgress.js";
 
 type SectionName = "profile" | "connections" | "models" | "fallback" | "export";
 const SECTIONS: SectionName[] = ["profile", "connections", "models", "fallback", "export"];
@@ -15,6 +17,8 @@ const SECTIONS: SectionName[] = ["profile", "connections", "models", "fallback",
 interface Option {
   value: string;
   label: string;
+  availability?: string;
+  local?: boolean;
 }
 
 type ConfigField =
@@ -40,6 +44,7 @@ const SECTION_FIELDS: Record<SectionName, ConfigField[]> = {
     { kind: "model", provider: "groq", label: "Hybrid Transcription Model", getValue: c => c.models.hybrid.transcription.model ?? "", setValue: (c, v) => c.models.hybrid.transcription.model = v },
     { kind: "model", provider: "groq", label: "Hybrid Vision Model", getValue: c => c.models.hybrid.vision.model ?? "", setValue: (c, v) => c.models.hybrid.vision.model = v },
     { kind: "model", provider: "ollama", label: "Local Text Model", getValue: c => c.models.local.text.model ?? "", setValue: (c, v) => c.models.local.text.model = v },
+    { kind: "model", provider: "sidecar_whisper", label: "Local Transcription", getValue: c => c.models.local.transcription?.model ?? "", setValue: (c, v) => { if(c.models.local.transcription) c.models.local.transcription.model = v; } },
     { kind: "model", provider: "ollama", label: "Local Vision Model", getValue: c => c.models.local.vision.model ?? "", setValue: (c, v) => c.models.local.vision.model = v },
   ],
   fallback: [
@@ -62,6 +67,9 @@ export function ConfigScreen(): React.ReactElement {
   const [editError, setEditError] = useState("");
   const [options, setOptions] = useState<Option[]>([]);
   const [optionIdx, setOptionIdx] = useState(0);
+
+  const [pullingModel, setPullingModel] = useState<string | null>(null);
+  const [customModelMode, setCustomModelMode] = useState<boolean>(false);
   
   const [cfg, setCfg] = useState<MndConfig | null>(null);
   const { exit } = useApp();
@@ -70,12 +78,51 @@ export function ConfigScreen(): React.ReactElement {
     loadConfig().then(setCfg).catch(console.error);
   }, []);
 
-  useInput(async (input, key) => {
+  const saveFieldValue = async (val: any) => {
     if (!cfg) return;
+    const field = SECTION_FIELDS[focusSection][focusFieldIdx];
+    if (!field) return;
+    const newCfg = structuredClone(cfg);
+    field.setValue(newCfg, val as never);
+    await saveConfig(newCfg);
+    invalidateConfigCache();
+    setCfg(newCfg);
+    setEditing(false);
+    setEditError("");
+  };
+
+  useInput(async (input, key) => {
+    if (!cfg || pullingModel) return;
 
     const fields = SECTION_FIELDS[focusSection];
     const field = fields[focusFieldIdx];
     if (!field) return;
+
+    if (customModelMode) {
+      if (key.escape) {
+        setCustomModelMode(false);
+        setEditing(false);
+        setEditError("");
+        return;
+      }
+      if (key.return) {
+        if (editBuffer.trim() === "") {
+          setEditError("Cannot be empty");
+          return;
+        }
+        await saveFieldValue(editBuffer.trim());
+        setCustomModelMode(false);
+        return;
+      }
+      if (key.backspace || key.delete) {
+        setEditBuffer(b => b.slice(0, -1));
+        setEditError("");
+      } else if (input && !key.ctrl && !key.meta) {
+        setEditBuffer(b => b + input);
+        setEditError("");
+      }
+      return;
+    }
 
     if (editing) {
       if (key.escape) {
@@ -92,16 +139,18 @@ export function ConfigScreen(): React.ReactElement {
         } else if (key.return) {
           const selected = options[optionIdx];
           if (selected) {
-            const newCfg = structuredClone(cfg);
-            if (field.kind === "boolean") {
-              field.setValue(newCfg, selected.value === "true");
-            } else {
-              field.setValue(newCfg, selected.value);
+            if (selected.value === "__custom__") {
+              setEditBuffer("");
+              setCustomModelMode(true);
+              return;
             }
-            await saveConfig(newCfg);
-            invalidateConfigCache();
-            setCfg(newCfg);
-            setEditing(false);
+            if (selected.availability === "not_installed" && selected.local) {
+              setPullingModel(selected.value);
+              return;
+            }
+            let val: any = selected.value;
+            if (field.kind === "boolean") val = selected.value === "true";
+            await saveFieldValue(val);
           }
         }
         return;
@@ -115,13 +164,7 @@ export function ConfigScreen(): React.ReactElement {
             setEditError(`Must be integer between ${field.min} and ${field.max}`);
             return;
           }
-          const newCfg = structuredClone(cfg);
-          field.setValue(newCfg, parsed);
-          await saveConfig(newCfg);
-          invalidateConfigCache();
-          setCfg(newCfg);
-          setEditing(false);
-          setEditError("");
+          await saveFieldValue(parsed);
         } else if (field.kind === "text") {
           if (field.validate) {
             const err = field.validate(editBuffer);
@@ -130,13 +173,7 @@ export function ConfigScreen(): React.ReactElement {
               return;
             }
           }
-          const newCfg = structuredClone(cfg);
-          field.setValue(newCfg, editBuffer);
-          await saveConfig(newCfg);
-          invalidateConfigCache();
-          setCfg(newCfg);
-          setEditing(false);
-          setEditError("");
+          await saveFieldValue(editBuffer);
         }
       } else if (key.backspace || key.delete) {
         setEditBuffer(b => b.slice(0, -1));
@@ -177,18 +214,30 @@ export function ConfigScreen(): React.ReactElement {
         setOptionIdx(field.getValue(cfg) === "true" ? 0 : 1);
         setEditing(true);
       } else if (field.kind === "model") {
-        setOptions([{value: field.getValue(cfg), label: `Current: ${field.getValue(cfg)}`}]);
+        const cur = field.getValue(cfg);
+        setOptions([{value: cur, label: "Loading catalog..."}]);
         setOptionIdx(0);
         setEditing(true);
-        // Load dynamically
-        if (field.provider === "ollama") {
-          listPulledModels().then(models => {
-            const opts = models.map(m => ({value: m, label: m}));
-            if (opts.length === 0) opts.push({value: "", label: "No local models found"});
-            opts.push({value: field.getValue(cfg), label: "Custom model ID..."});
-            setOptions(opts);
-          });
-        }
+
+        getModelCatalog(false).then(models => {
+          const providerModels = models.filter(m => m.provider === field.provider);
+          let opts: Option[] = providerModels.map(m => ({
+            value: m.id,
+            label: m.displayName || m.id,
+            availability: m.availability,
+            local: m.local
+          }));
+          
+          if (!opts.find(o => o.value === cur) && cur) {
+            opts.unshift({ value: cur, label: cur, availability: "unknown", local: field.provider === "ollama" });
+          }
+          if (opts.length === 0) opts.push({value: "", label: "No models found"});
+          opts.push({value: "__custom__", label: "Custom model ID..."});
+
+          setOptions(opts);
+          const currentIdx = opts.findIndex(o => o.value === cur);
+          setOptionIdx(currentIdx >= 0 ? currentIdx : 0);
+        });
       } else {
         setEditing(true);
       }
@@ -196,6 +245,26 @@ export function ConfigScreen(): React.ReactElement {
   });
 
   if (!cfg) return <Text color="gray">Loading config...</Text>;
+
+  if (pullingModel) {
+    return (
+      <OllamaPullProgress 
+        model={pullingModel}
+        host={cfg.connections.ollama_host}
+        onSuccess={() => {
+          // Re-query catalog after install
+          getModelCatalog(true).then(() => {
+            saveFieldValue(pullingModel);
+            setPullingModel(null);
+          });
+        }}
+        onCancel={() => {
+          setPullingModel(null);
+          setEditing(false); // cancel edit
+        }}
+      />
+    );
+  }
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -214,7 +283,15 @@ export function ConfigScreen(): React.ReactElement {
             const prefix = isCurrent ? (editing ? "✏ " : "▸ ") : "  ";
             
             if (editing && isCurrent) {
-              if (f.kind === "select" || f.kind === "boolean" || f.kind === "model") {
+              if (customModelMode) {
+                return `${prefix}${f.label}: ${editBuffer}█ ${editError ? chalk.red(`(${editError})`) : ""}`;
+              } else if (f.kind === "model") {
+                // Return a special placeholder, we will render a Box outside the standard lines array if we were rendering manually, 
+                // but since renderFocusableBox expects strings, we can inline a vertical list using newlines!
+                // Wait, renderFocusableBox takes `string[]`. If we put newlines in a string, renderFocusableBox might break its border drawing if it counts lines by array length.
+                // It's better to push multiple lines into the array.
+                return `${prefix}${f.label}:`;
+              } else if (f.kind === "select" || f.kind === "boolean") {
                 const optStr = options.map((o, idx) => idx === optionIdx ? chalk.bgHex(theme.accent).black(` ${o.label} `) : ` ${o.label} `).join(" | ");
                 return `${prefix}${f.label}: ${optStr}`;
               } else {
@@ -224,6 +301,30 @@ export function ConfigScreen(): React.ReactElement {
               return `${prefix}${f.label}: ${val}`;
             }
           });
+
+          // Insert vertical options if model field is editing
+          if (editing && isFocused && SECTION_FIELDS[section][focusFieldIdx]?.kind === "model" && !customModelMode) {
+            // we insert lines into the lines array directly below the current field
+            const insertAt = focusFieldIdx + 1;
+            const maxOptions = 6;
+            const startIdx = Math.max(0, Math.min(optionIdx - 2, options.length - maxOptions));
+            const endIdx = Math.min(options.length, startIdx + maxOptions);
+            
+            const optionLines = options.slice(startIdx, endIdx).map((o, visibleIdx) => {
+              const actualIdx = startIdx + visibleIdx;
+              const isSelected = actualIdx === optionIdx;
+              let label = o.label;
+              if (o.availability === "unavailable") label += chalk.red(" (unavailable)");
+              if (o.availability === "not_installed") label += chalk.yellow(" (not installed)");
+              if (o.availability === "unknown") label += chalk.gray(" (unknown)");
+              return isSelected ? chalk.bgHex(theme.accent).black(`    > ${o.value} `) : `      ${label}`;
+            });
+
+            if (startIdx > 0) optionLines.unshift("      ...");
+            if (endIdx < options.length) optionLines.push("      ...");
+
+            lines.splice(insertAt, 0, ...optionLines);
+          }
 
           const rendered = renderFocusableBox(
             section.charAt(0).toUpperCase() + section.slice(1),

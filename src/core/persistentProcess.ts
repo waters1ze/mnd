@@ -5,6 +5,7 @@ import {
   SpawnOptionsWithoutStdio,
 } from "node:child_process";
 import chalk from "chalk";
+import { registerProcess, unregisterProcess } from "./cancellation.js";
 
 export interface PersistentProcessOptions {
   command: string;
@@ -42,6 +43,10 @@ export class PersistentProcess {
     return this.opts.name ?? this.opts.command;
   }
 
+  getChild(): ChildProcess | null {
+    return this.child;
+  }
+
   getStatus(): { alive: boolean; queueLength: number; state: ProcessState } {
     return {
       alive: this.child !== null && this.child.exitCode === null,
@@ -62,26 +67,35 @@ export class PersistentProcess {
       };
 
       this.child = spawn(this.opts.command, this.opts.args, spawnOpts);
+      if (this.child.pid) {
+        registerProcess({
+          pid: this.child.pid,
+          kind: "python", // or general tracked process type
+          process: this.child,
+          ownedByRun: true
+        });
+      }
+      
       this.stdoutBuffer = "";
 
       this.child.stdout?.on("data", (chunk: Buffer) => {
-        this.stdoutBuffer += chunk.toString();
+        this.stdoutBuffer += chunk.toString("utf8");
         this.onStdout();
       });
 
       this.child.stderr?.on("data", (chunk: Buffer) => {
-        // Only show stderr in debug mode
         if (process.env["MND_DEBUG"]) {
-          process.stderr.write(`[${this.name}] ${chunk.toString()}`);
+          console.warn(chalk.yellow(`[${this.name} stderr] ${chunk.toString("utf8").trim()}`));
         }
       });
 
       this.child.on("error", (err) => {
-        if (this.state === "starting") reject(err);
-        else this.scheduleRestart();
+        console.error(chalk.red(`[${this.name}] Process error: ${err.message}`));
       });
 
       this.child.on("exit", (code) => {
+        if (this.child?.pid) unregisterProcess(this.child.pid);
+
         if (this.state !== "stopped") {
           if (process.env["MND_DEBUG"]) {
             console.warn(chalk.yellow(`[${this.name}] exited with code ${code}, scheduling restart`));

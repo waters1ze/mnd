@@ -197,3 +197,8 @@ export async function hasKey(refName: string): Promise<boolean> {
   const store = await getSecretsStore();
   return store.hasKey(refName);
 }
+
+export async function secretsGet(refName: string): Promise<string | null> {
+  const store = await getSecretsStore();
+  return store.get(refName);
+}
