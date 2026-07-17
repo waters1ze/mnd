@@ -1,6 +1,6 @@
 // src/auth/accountState.ts
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAppDataDir } from "../core/paths.js";
 import type { AccountSummary } from "./types.js";
@@ -22,7 +22,6 @@ export async function getAccountState(): Promise<AccountSummary | null> {
 export function getAccountStateSync(): AccountSummary | null {
   if (!existsSync(ACCOUNT_FILE_PATH)) return null;
   try {
-    const { readFileSync } = require("node:fs");
     const data = readFileSync(ACCOUNT_FILE_PATH, "utf-8");
     return JSON.parse(data) as AccountSummary;
   } catch (error) {

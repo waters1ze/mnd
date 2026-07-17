@@ -19,6 +19,25 @@ export class DriveApiError extends Error {
 export interface DriveFetchOptions extends RequestInit {
   retryCount?: number;
   maxRetries?: number;
+  acceptedStatuses?: number[];
+}
+
+export async function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new Error("AbortError"));
+    
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(new Error("AbortError"));
+    };
+    
+    signal.addEventListener("abort", onAbort);
+  });
 }
 
 const MAX_RETRIES = 5;
@@ -50,15 +69,15 @@ export async function driveFetch(path: string, options: DriveFetchOptions = {}):
       signal,
     });
 
-    if (!res.ok) {
+    if (!res.ok && (!options.acceptedStatuses || !options.acceptedStatuses.includes(res.status))) {
       // Handle 401 Unauthorized (token expired)
       if (res.status === 401 && retryCount === 0) {
         await authProvider.refresh();
         return driveFetch(path, { ...options, retryCount: retryCount + 1 });
       }
 
-      // Handle 429 Too Many Requests or 5xx server errors
-      if ((res.status === 429 || res.status >= 500) && retryCount < maxRetries) {
+      // Handle 408, 429 Too Many Requests or 500, 502, 503, 504 server errors
+      if ((res.status === 408 || res.status === 429 || [500, 502, 503, 504].includes(res.status)) && retryCount < maxRetries) {
         let delayMs = BASE_DELAY_MS * Math.pow(2, retryCount) + Math.random() * 1000;
         
         // Honor Retry-After header if present
@@ -70,7 +89,7 @@ export async function driveFetch(path: string, options: DriveFetchOptions = {}):
           }
         }
 
-        await new Promise(r => setTimeout(r, delayMs));
+        await abortableDelay(delayMs, signal);
         return driveFetch(path, { ...options, retryCount: retryCount + 1 });
       }
 
@@ -87,14 +106,19 @@ export async function driveFetch(path: string, options: DriveFetchOptions = {}):
 
     return res;
   } catch (error: any) {
-    // If it's an AbortError, propagate it immediately
-    if (error.name === "AbortError") {
+    if (error.name === "AbortError" || error.message === "AbortError") {
+      const e = new Error("Aborted");
+      e.name = "AbortError";
+      throw e;
+    }
+    // Do not blindly retry protocol errors (e.g., 400, 403, 404)
+    if (error instanceof DriveApiError) {
       throw error;
     }
     // Network failures, attempt retry
     if (retryCount < maxRetries) {
       const delayMs = BASE_DELAY_MS * Math.pow(2, retryCount) + Math.random() * 1000;
-      await new Promise(r => setTimeout(r, delayMs));
+      await abortableDelay(delayMs, signal);
       return driveFetch(path, { ...options, retryCount: retryCount + 1 });
     }
     throw error;

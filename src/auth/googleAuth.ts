@@ -1,5 +1,5 @@
 // src/auth/googleAuth.ts
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -104,13 +104,35 @@ export class GoogleAuthProvider implements AuthProvider {
     const verifier = generateCodeVerifier();
     const challenge = generateCodeChallenge(verifier);
     const state = generateState();
-    const abortSignal = getAbortController().signal;
+    
+    // Create run-scoped AbortController
+    const runController = new AbortController();
 
     return new Promise((resolve, reject) => {
+      let timeoutId: NodeJS.Timeout;
+      let isCompleted = false;
+      let redirectUri = "";
+
+      let cleanup = (server: any) => {
+        if (isCompleted) return;
+        isCompleted = true;
+        clearTimeout(timeoutId);
+        runController.abort();
+        server.close();
+      };
+
       const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
         try {
+          if (isCompleted) return;
+          
+          if (req.method !== "GET") {
+            res.writeHead(405);
+            res.end("Method Not Allowed");
+            return;
+          }
+
           const url = new URL(req.url || "/", `http://${req.headers.host}`);
-          if (url.pathname !== "/") {
+          if (url.pathname !== "/oauth/callback") {
             res.writeHead(404);
             res.end("Not found");
             return;
@@ -128,30 +150,37 @@ export class GoogleAuthProvider implements AuthProvider {
             throw new GoogleOAuthError("Missing code or state from callback");
           }
 
-          if (returnedState !== state) {
+          const stateBuf = Buffer.from(state);
+          const returnedStateBuf = Buffer.from(returnedState);
+          if (stateBuf.length !== returnedStateBuf.length || !timingSafeEqual(stateBuf, returnedStateBuf)) {
             throw new GoogleOAuthError("State mismatch. Possible CSRF attack.");
           }
 
-          // We got the code, close server immediately
-          res.writeHead(200, { "Content-Type": "text/html" });
+          // We got the code
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
           res.end("<html><body><h1>Authentication successful!</h1><p>You may close this window and return to MND.</p></body></html>");
-          server.close();
-
-          const redirectUri = `http://127.0.0.1:${(server.address() as any).port}`;
           
-          const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              client_id: config.client_id,
-              ...(config.client_secret ? { client_secret: config.client_secret } : {}),
-              code,
-              code_verifier: verifier,
-              redirect_uri: redirectUri,
-              grant_type: "authorization_code",
-            }),
-            signal: abortSignal,
-          });
+          // Cleanup server after success response sent
+          cleanup(server);
+          
+          let tokenRes;
+          try {
+            tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                client_id: config.client_id,
+                ...(config.client_secret ? { client_secret: config.client_secret } : {}),
+                code,
+                code_verifier: verifier,
+                redirect_uri: redirectUri,
+                grant_type: "authorization_code",
+              }),
+              signal: runController.signal,
+            });
+          } catch (e: any) {
+            throw new GoogleOAuthError(`Token exchange network error: ${e.message}`);
+          }
 
           if (!tokenRes.ok) {
             const errBody = await tokenRes.text();
@@ -163,40 +192,39 @@ export class GoogleAuthProvider implements AuthProvider {
           memAccessToken = tokens.access_token;
           memTokenExpiry = Date.now() + tokens.expires_in * 1000;
 
-          // Fetch basic profile info to test token and get account email
-          const profileRes = await fetch("https://www.googleapis.com/drive/v3/about?fields=user", {
+          if (tokens.refresh_token) {
+            await storeRefreshToken("google-user", tokens.refresh_token);
+          }
+
+          // Get profile
+          const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
             headers: { Authorization: `Bearer ${tokens.access_token}` },
-            signal: abortSignal,
+            signal: runController.signal,
           });
 
           if (!profileRes.ok) {
-            throw new GoogleOAuthError(`Failed to fetch user profile: ${profileRes.statusText}`);
+            // Revoke access token if we failed to get profile so we don't leave bad state
+            await fetch("https://oauth2.googleapis.com/revoke", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({ token: tokens.access_token }),
+            }).catch(() => {});
+            throw new GoogleOAuthError(`Failed to fetch profile: ${profileRes.statusText}`);
           }
+
           const profileData = (await profileRes.json()) as any;
-          const email = profileData.user?.emailAddress || "unknown@google.com";
-          const displayName = profileData.user?.displayName || "Unknown User";
+          const email = profileData.email || "unknown@google.com";
+          const displayName = profileData.name || "Unknown User";
 
-          const accountId = email; // Using email as a stable account id
+          const accountId = email; 
           
-          if (tokens.refresh_token) {
-            await storeRefreshToken(accountId, tokens.refresh_token);
-          } else {
-            // If we don't have a refresh token, it means the user previously authorized
-            // and Google isn't returning a new one. We might need to prompt them to revoke or
-            // just rely on the existing one if it exists.
-            const existing = await getRefreshToken(accountId);
-            if (!existing) {
-              throw new GoogleOAuthError("No refresh token received. You may need to revoke MND access in your Google Account and try again.");
-            }
-          }
-
           const accountSummary: AccountSummary = {
             provider: this.name,
             status: "connected",
             accountId,
             email,
             displayName,
-            scopes: tokens.scope.split(" "),
+            scopes: tokens.scope ? tokens.scope.split(" ") : [DEFAULT_SCOPE],
             connectedAt: new Date().toISOString(),
             lastValidatedAt: new Date().toISOString(),
           };
@@ -204,40 +232,64 @@ export class GoogleAuthProvider implements AuthProvider {
           await saveAccountState(accountSummary);
           resolve();
 
-        } catch (err: any) {
-          res.writeHead(500, { "Content-Type": "text/html" });
-          res.end(`<html><body><h1>Authentication Failed</h1><p>${err.message}</p></body></html>`);
-          server.close();
-          reject(err);
+        } catch (error: any) {
+          cleanup(server);
+          if (!res.headersSent) {
+            res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+            res.end(`<html><body><h1>Authentication Failed</h1><p>Return to terminal for details.</p></body></html>`);
+          } else {
+            console.error("OAuth Error:", error.message);
+          }
+          reject(error);
         }
       });
 
-      server.on("error", (err) => {
-        server.close();
-        reject(err);
-      });
+      timeoutId = setTimeout(() => {
+        cleanup(server);
+        reject(new GoogleOAuthError("Google login timed out (5 minutes)"));
+      }, 5 * 60_000);
+
+      // Bind global abort controller to local
+      const onGlobalAbort = () => {
+        cleanup(server);
+        reject(new Error("Login cancelled by user"));
+      };
+      
+      const globalSignal = getAbortController().signal;
+      globalSignal.addEventListener("abort", onGlobalAbort);
+      const originalCleanup = cleanup;
+      // Override cleanup
+      cleanup = (serverInstance: any) => {
+        originalCleanup(serverInstance);
+        globalSignal.removeEventListener("abort", onGlobalAbort);
+      };
 
       server.listen(0, "127.0.0.1", () => {
-        const port = (server.address() as any).port;
-        const redirectUri = `http://127.0.0.1:${port}`;
-        const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-        authUrl.searchParams.set("client_id", config.client_id);
-        authUrl.searchParams.set("redirect_uri", redirectUri);
-        authUrl.searchParams.set("response_type", "code");
-        authUrl.searchParams.set("scope", DEFAULT_SCOPE);
-        authUrl.searchParams.set("code_challenge", challenge);
-        authUrl.searchParams.set("code_challenge_method", "S256");
-        authUrl.searchParams.set("state", state);
-        authUrl.searchParams.set("access_type", "offline");
-        authUrl.searchParams.set("prompt", "consent"); // Force consent to ensure refresh_token
+        const address = server.address();
+        if (!address || typeof address === "string") {
+          cleanup(server);
+          reject(new GoogleOAuthError("Failed to bind server to a port"));
+          return;
+        }
+        
+        redirectUri = `http://127.0.0.1:${address.port}/oauth/callback`;
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+          client_id: config.client_id,
+          redirect_uri: redirectUri,
+          response_type: "code",
+          scope: DEFAULT_SCOPE,
+          code_challenge: challenge,
+          code_challenge_method: "S256",
+          state,
+          access_type: "offline",
+          prompt: "consent",
+        }).toString();
 
-        openBrowser(authUrl.toString());
+        console.log(`\nOpening browser for Google authentication...`);
+        console.log(`If it doesn't open automatically, visit:\n${authUrl}\n`);
+        console.log(`Waiting for browser login... (Press Ctrl+C to cancel)`);
 
-        // Cancel support
-        abortSignal.addEventListener("abort", () => {
-          server.close();
-          reject(new Error("Login cancelled."));
-        });
+        openBrowser(authUrl);
       });
     });
   }

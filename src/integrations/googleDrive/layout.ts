@@ -53,6 +53,43 @@ export async function createDriveFolder(name: string, parentId?: string, appProp
   });
 }
 
+export async function resolveNestedFolder(
+  relativePath: string,
+  rootFolderId: string,
+  folderCache: Record<string, string>
+): Promise<string> {
+  const parts = relativePath.split(/[\\/]/).filter(Boolean);
+  // The last part is the file name, so the directories are everything before it
+  const dirs = parts.slice(0, -1);
+  
+  if (dirs.length === 0) {
+    return rootFolderId;
+  }
+
+  let currentParentId = rootFolderId;
+  let currentPath = "";
+
+  for (const dir of dirs) {
+    currentPath = currentPath ? `${currentPath}/${dir}` : dir;
+    
+    if (folderCache[currentPath]) {
+      currentParentId = folderCache[currentPath]!;
+      continue;
+    }
+
+    const existing = await findDriveFoldersByName(dir, currentParentId);
+    if (existing.length > 0) {
+      currentParentId = existing[0]!.id;
+      folderCache[currentPath] = currentParentId;
+    } else {
+      const created = await createDriveFolder(dir, currentParentId, { isMndSyncFolder: "true", relativePath: currentPath });
+      currentParentId = created.id!;
+      folderCache[currentPath] = currentParentId;
+    }
+  }
+
+  return currentParentId;
+}
 /**
  * Ensures a folder exists by appProperty first, then by name.
  * If multiple exist, it throws to prompt user resolution (UI logic).

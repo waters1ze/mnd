@@ -48,54 +48,7 @@ export async function uploadFileResumable(
     throw new Error("Failed to initialize resumable upload: no location header returned.");
   }
 
-  // 2. Upload Data in Chunks (using a single chunk for simplicity unless size > 5MB, then chunked)
-  // Google recommends multiples of 256KB for chunks. Let's use 5MB chunks.
-  const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
-  const fd = await open(localPath, "r");
-  
-  try {
-    let uploadedBytes = 0;
-    while (uploadedBytes < totalSize) {
-      if (options.signal?.aborted) {
-        throw new Error("Upload aborted");
-      }
-
-      const chunkSize = Math.min(CHUNK_SIZE, totalSize - uploadedBytes);
-      const buffer = Buffer.alloc(chunkSize);
-      await fd.read(buffer, 0, chunkSize, uploadedBytes);
-
-      const endByte = uploadedBytes + chunkSize - 1;
-      const contentRange = `bytes ${uploadedBytes}-${endByte}/${totalSize}`;
-
-      const uploadRes = await driveFetch(location, {
-        method: "PUT",
-        headers: {
-          "Content-Range": contentRange,
-          "Content-Length": chunkSize.toString(),
-        },
-        body: buffer,
-        ...(options.signal ? { signal: options.signal } : {}),
-        // Since we handle 308 (Resume Incomplete) manually we don't want fetch to auto-throw 
-      });
-
-      if (uploadRes.status === 308) {
-        // Incomplete, continue to next chunk
-        uploadedBytes += chunkSize;
-        options.onProgress?.(uploadedBytes, totalSize);
-      } else if (uploadRes.status === 200 || uploadRes.status === 201) {
-        // Complete
-        const finalData = await uploadRes.json() as any;
-        options.onProgress?.(totalSize, totalSize);
-        return finalData.id;
-      } else {
-        throw new Error(`Unexpected upload status: ${uploadRes.status} ${uploadRes.statusText}`);
-      }
-    }
-  } finally {
-    await fd.close();
-  }
-
-  throw new Error("Upload loop finished without 200/201 response.");
+  return await runChunkedUpload(location, localPath, totalSize, options);
 }
 
 export async function updateFileResumable(
@@ -107,7 +60,6 @@ export async function updateFileResumable(
   const totalSize = fileStat.size;
   const mimeType = options.mimeType || "application/octet-stream";
 
-  // Initiate update session
   const initRes = await driveFetch(`/files/${fileId}?uploadType=resumable`, {
     method: "PATCH",
     headers: {
@@ -120,33 +72,36 @@ export async function updateFileResumable(
   const location = initRes.headers.get("location");
   if (!location) throw new Error("Failed to initialize resumable update.");
 
+  await runChunkedUpload(location, localPath, totalSize, options);
+}
+
+async function runChunkedUpload(location: string, localPath: string, totalSize: string | number, options: UploadOptions): Promise<string> {
+  const size = typeof totalSize === "string" ? parseInt(totalSize, 10) : totalSize;
   const CHUNK_SIZE = 5 * 1024 * 1024;
-  const fd = await open(localPath, "r");
   
+  if (size === 0) {
+    const uploadRes = await driveFetch(location, {
+      method: "PUT",
+      headers: { "Content-Range": `bytes */0` },
+      ...(options.signal ? { signal: options.signal } : {}),
+      acceptedStatuses: [200, 201]
+    });
+    const finalData = await uploadRes.json() as any;
+    return finalData.id || "";
+  }
+
+  const fd = await open(localPath, "r");
   try {
     let uploadedBytes = 0;
-    if (totalSize === 0) {
-        // Empty file handling
-        const uploadRes = await driveFetch(location, {
-            method: "PUT",
-            headers: {
-                "Content-Range": `bytes */0`,
-            },
-            ...(options.signal ? { signal: options.signal } : {}),
-        });
-        if (uploadRes.status === 200 || uploadRes.status === 201) return;
-        throw new Error("Failed to upload empty file");
-    }
-
-    while (uploadedBytes < totalSize) {
+    while (uploadedBytes < size) {
       if (options.signal?.aborted) throw new Error("Upload aborted");
 
-      const chunkSize = Math.min(CHUNK_SIZE, totalSize - uploadedBytes);
+      const chunkSize = Math.min(CHUNK_SIZE, size - uploadedBytes);
       const buffer = Buffer.alloc(chunkSize);
       await fd.read(buffer, 0, chunkSize, uploadedBytes);
 
       const endByte = uploadedBytes + chunkSize - 1;
-      const contentRange = `bytes ${uploadedBytes}-${endByte}/${totalSize}`;
+      const contentRange = `bytes ${uploadedBytes}-${endByte}/${size}`;
 
       const uploadRes = await driveFetch(location, {
         method: "PUT",
@@ -156,18 +111,52 @@ export async function updateFileResumable(
         },
         body: buffer,
         ...(options.signal ? { signal: options.signal } : {}),
+        acceptedStatuses: [200, 201, 308],
       });
 
       if (uploadRes.status === 308) {
-        uploadedBytes += chunkSize;
-        options.onProgress?.(uploadedBytes, totalSize);
+        let rangeHeader = uploadRes.headers.get("Range");
+        if (!rangeHeader) {
+          // Query session status if Range is absent
+          const statusRes = await driveFetch(location, {
+            method: "PUT",
+            headers: { "Content-Range": `bytes */${size}` },
+            ...(options.signal ? { signal: options.signal } : {}),
+            acceptedStatuses: [200, 201, 308],
+          });
+          
+          if (statusRes.status === 308) {
+            rangeHeader = statusRes.headers.get("Range");
+          } else if (statusRes.status === 200 || statusRes.status === 201) {
+            const finalData = await statusRes.json() as any;
+            options.onProgress?.(size, size);
+            return finalData.id || "";
+          } else {
+            throw new Error(`Unexpected status check response: ${statusRes.status}`);
+          }
+        }
+        
+        if (rangeHeader) {
+          const match = rangeHeader.match(/bytes=0-(\d+)/);
+          if (match && match[1]) {
+            uploadedBytes = parseInt(match[1], 10) + 1;
+          } else {
+            uploadedBytes += chunkSize;
+          }
+        } else {
+           // still no range header, assume 0
+           uploadedBytes = 0;
+        }
+        options.onProgress?.(uploadedBytes, size);
       } else if (uploadRes.status === 200 || uploadRes.status === 201) {
-        options.onProgress?.(totalSize, totalSize);
-        return;
+        const finalData = await uploadRes.json() as any;
+        options.onProgress?.(size, size);
+        return finalData.id || "";
       } else {
-        throw new Error(`Unexpected update status: ${uploadRes.status} ${uploadRes.statusText}`);
+        throw new Error(`Unexpected upload status: ${uploadRes.status} ${uploadRes.statusText}`);
       }
     }
+    throw new Error("Upload loop finished without 200/201 response.");
   } finally {
     await fd.close();
   }

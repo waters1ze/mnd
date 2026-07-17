@@ -122,15 +122,19 @@ export async function createSyncPlan(
       continue; 
     }
 
+    if (entry.tombstone && entry.tombstone.resolution === "pending") {
+      plan.conflicts.push({ type: "conflict", entry, reason: "Pending tombstone conflict" });
+      continue;
+    }
+
     if (localExists && !remoteExists) {
       if (entry.lastSyncedHash) {
         // Remote was deleted
         if (localChanged) {
           plan.conflicts.push({ type: "conflict", entry, reason: "Local modified, remote deleted" });
         } else {
-          // It was deleted remotely and untouched locally. Let's mark for local deletion, but ask policy.
-          // The prompt says: "Never delete local raw automatically." (Handled by scope/rules later, but let's push a delete action)
-          plan.actions.push({ type: "delete_local", entry, reason: "Deleted remotely" });
+          // Never delete automatically. Create a tombstone instead.
+          plan.actions.push({ type: "mark_tombstone", entry, reason: "Deleted remotely" });
         }
       } else {
         // New local file

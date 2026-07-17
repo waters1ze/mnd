@@ -2,6 +2,14 @@
 
 export type SyncState = "synced" | "local_changed" | "remote_changed" | "conflict" | "pending" | "deleted_local" | "deleted_remote";
 
+export interface SyncTombstone {
+  relativePath: string;
+  remoteFileId?: string;
+  deletedRemoteAt: string;
+  localHash?: string;
+  resolution: "pending" | "reupload" | "keep_local_untracked" | "accept_deletion";
+}
+
 export interface SyncEntry {
   version: 1;
   relativePath: string;
@@ -15,6 +23,7 @@ export interface SyncEntry {
   lastSyncedHash?: string | undefined;
   lastSyncedAt?: string | undefined;
   state: SyncState;
+  tombstone?: SyncTombstone;
 }
 
 export interface SyncManifest {
@@ -22,7 +31,7 @@ export interface SyncManifest {
   entries: Record<string, SyncEntry>;
 }
 
-export type SyncActionType = "push" | "pull" | "conflict" | "skip" | "delete_local" | "delete_remote";
+export type SyncActionType = "push" | "pull" | "conflict" | "skip" | "delete_remote" | "mark_tombstone";
 
 export interface SyncPlanAction {
   type: SyncActionType;

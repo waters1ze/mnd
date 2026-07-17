@@ -10,6 +10,7 @@ import { createSyncPlan } from "../sync/planner.js";
 import { executeSyncPlan } from "../sync/engine.js";
 import { resolveConflict, type ConflictResolution } from "../sync/conflicts.js";
 import { join } from "node:path";
+import { statSync } from "node:fs";
 import { session } from "../repl/loop.js";
 import { loadConfig, resolveVaultPath } from "../core/config.js";
 
@@ -55,7 +56,21 @@ export function registerSyncCommands() {
       console.log(chalk.bold("\nSync Status"));
       console.log(`Account: ${summary.email}`);
       console.log(`Online: Yes`);
-      // We would load manifest and count pending/conflicts here
+      
+      const cfg = await loadConfig();
+      const vaultPath = resolveVaultPath(cfg);
+      const manifestPath = join(vaultPath, ".mnd-sync", "manifest.json");
+      const manifest = await loadManifest(manifestPath);
+      
+      const folderId = manifest.entries["_MND_REMOTE_FOLDER_ID"]?.remoteFileId;
+      if (!folderId) {
+        console.log(chalk.red("Sync not setup. Run /sync setup first."));
+        return;
+      }
+      
+      const plan = await createSyncPlan(vaultPath, folderId, manifest, { includeRaw: false });
+      console.log(`Pending actions: ${plan.actions.length}`);
+      console.log(`Conflicts: ${plan.conflicts.length}`);
       console.log("");
     },
     getContextAvailability: () => "enabled"
@@ -96,7 +111,28 @@ export function registerSyncCommands() {
     description: "Show unresolved sync conflicts",
     execute: async () => {
       console.log(chalk.yellow("Checking for conflicts..."));
-      // In a real flow, we check the latest plan saved to disk or run planner
+      const summary = await googleAuth.getAccountSummary();
+      if (!summary || summary.status === "logged_out") return;
+
+      const cfg = await loadConfig();
+      const vaultPath = resolveVaultPath(cfg);
+      const manifestPath = join(vaultPath, ".mnd-sync", "manifest.json");
+      const manifest = await loadManifest(manifestPath);
+      const folderId = manifest.entries["_MND_REMOTE_FOLDER_ID"]?.remoteFileId;
+      if (!folderId) return;
+
+      const plan = await createSyncPlan(vaultPath, folderId, manifest, { includeRaw: true });
+      if (plan.conflicts.length === 0) {
+        console.log(chalk.green("No unresolved conflicts."));
+        return;
+      }
+
+      console.log(chalk.bold(`\nConflicts (${plan.conflicts.length}):`));
+      for (const c of plan.conflicts) {
+        console.log(chalk.cyan(`  ${c.entry.relativePath}`));
+        console.log(chalk.gray(`    Reason: ${c.reason}`));
+      }
+      console.log("\nUse `/sync resolve` to fix them.");
     },
     getContextAvailability: () => "enabled"
   });
@@ -106,6 +142,72 @@ export function registerSyncCommands() {
     description: "Resolve sync conflicts interactively",
     execute: async () => {
       console.log(chalk.yellow("Starting interactive resolution..."));
+      const summary = await googleAuth.getAccountSummary();
+      if (!summary || summary.status === "logged_out") return;
+
+      const cfg = await loadConfig();
+      const vaultPath = resolveVaultPath(cfg);
+      const manifestPath = join(vaultPath, ".mnd-sync", "manifest.json");
+      const manifest = await loadManifest(manifestPath);
+      const folderId = manifest.entries["_MND_REMOTE_FOLDER_ID"]?.remoteFileId;
+      if (!folderId) return;
+
+      const plan = await createSyncPlan(vaultPath, folderId, manifest, { includeRaw: true });
+      if (plan.conflicts.length === 0) {
+        console.log(chalk.green("No conflicts to resolve."));
+        return;
+      }
+
+      for (const conflict of plan.conflicts) {
+        console.log(chalk.bold(`\nConflict: ${conflict.entry.relativePath}`));
+        console.log(`Reason: ${conflict.reason}`);
+
+        const isRaw = conflict.entry.relativePath.startsWith("raw/") || conflict.entry.relativePath === "raw";
+        const isTombstone = !!conflict.entry.tombstone;
+
+        const options = [
+          { value: "keep_local", label: "Keep Local (Push to Drive)" },
+          { value: "keep_remote", label: "Keep Remote (Pull from Drive)" },
+          { value: "keep_both", label: "Keep Both (Rename local, pull remote)" },
+        ];
+
+        if (isTombstone) {
+           options.push({ value: "keep_local_untracked", label: "Keep Local (Stop Syncing)" });
+           if (!isRaw) {
+             options.push({ value: "accept_deletion", label: "Accept Remote Deletion (Move local to Trash)" });
+           }
+        }
+
+        options.push({ value: "skip", label: "Skip for now" });
+
+        const resolution = await select({
+          message: `How do you want to resolve ${conflict.entry.relativePath}?`,
+          options,
+        });
+
+        if (resolution === "skip") {
+          console.log(chalk.yellow("Skipping..."));
+          continue;
+        }
+
+        await resolveConflict(conflict, resolution as ConflictResolution, plan, vaultPath);
+      }
+
+      // If we resolved anything, execute the newly generated actions
+      if (plan.actions.length > 0) {
+         console.log(chalk.cyan(`\nExecuting ${plan.actions.length} resolution actions...`));
+         await executeSyncPlan(plan, vaultPath, folderId, manifest, (action, progress) => {
+           console.log(`  ${action}`);
+         });
+         // Filter out any entries marked delete_local from conflict resolution
+         for (const act of plan.actions) {
+            if (act.type === "delete_local" as any && act.reason === "Accepted deletion") {
+               delete manifest.entries[act.entry.relativePath];
+            }
+         }
+         await saveManifest(manifestPath, manifest);
+         console.log(chalk.green("✔ Resolutions applied."));
+      }
     },
     getContextAvailability: () => "enabled"
   });
@@ -145,14 +247,6 @@ async function runSync(includeRaw: boolean, mode: "both" | "push" | "pull") {
     return;
   }
 
-  if (includeRaw) {
-    const confirmed = await confirm({
-      message: "WARNING: You selected --include-raw. This will upload raw video files, consuming Drive quota. Proceed?",
-      initialValue: false,
-    });
-    if (!confirmed) return;
-  }
-
   const cfg = await loadConfig();
   const vaultPath = resolveVaultPath(cfg);
   const manifestPath = join(vaultPath, ".mnd-sync", "manifest.json");
@@ -168,11 +262,48 @@ async function runSync(includeRaw: boolean, mode: "both" | "push" | "pull") {
   try {
     const plan = await createSyncPlan(vaultPath, folderId, manifest, { includeRaw });
 
-    // Filter plan by mode
     if (mode === "push") {
-      plan.actions = plan.actions.filter(a => a.type === "push" || a.type === "delete_remote");
+      plan.actions = plan.actions.filter(a => a.type === "push" || a.type === "delete_remote" || a.type === "mark_tombstone");
     } else if (mode === "pull") {
-      plan.actions = plan.actions.filter(a => a.type === "pull" || a.type === "delete_local");
+      plan.actions = plan.actions.filter(a => a.type === "pull" || a.type === "mark_tombstone");
+    }
+
+    // Handle include-raw confirmation securely
+    if (includeRaw) {
+      const rawUploads = plan.actions.filter(a => a.type === "push" && (a.entry.relativePath.startsWith("raw/") || a.entry.relativePath === "raw"));
+      if (rawUploads.length > 0) {
+        let totalSize = 0;
+        const files: { path: string, size: number }[] = [];
+        
+        for (const act of rawUploads) {
+           const size = act.entry.localSize || 0;
+           totalSize += size;
+           files.push({ path: act.entry.relativePath, size });
+        }
+        files.sort((a, b) => b.size - a.size);
+
+        console.log(chalk.bold("\nRaw media upload\n"));
+        console.log(`Account: ${summary.email}`);
+        console.log(`Destination: My Drive/MND (ID: ${folderId})`);
+        console.log(`Files: ${rawUploads.length}`);
+        console.log(`Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+        console.log("\nLargest files:");
+        for (const f of files.slice(0, 5)) {
+          console.log(`  ${f.path} — ${(f.size / 1024 / 1024).toFixed(2)} MB`);
+        }
+        
+        console.log("\n" + chalk.yellow("Source files will not be modified or deleted."));
+        console.log(chalk.yellow("Remote deletion will never delete local raw files.\n"));
+        
+        const confirmation = await text({
+          message: "Type UPLOAD RAW to continue:",
+        });
+
+        if (confirmation !== "UPLOAD RAW") {
+          console.log(chalk.red("Upload cancelled."));
+          return;
+        }
+      }
     }
 
     if (plan.conflicts.length > 0) {

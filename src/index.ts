@@ -12,6 +12,7 @@ import { secretsHasKey } from "./core/secrets.js";
 import { runSetupWizard } from "./ui/setupWizard.js";
 import { registerCommands } from "./repl/router.js";
 import { startRepl, session } from "./repl/loop.js";
+import { Updater } from "./core/updater.js";
 
 // ─── Import all command handlers ──────────────────────────────────────────────
 import { handleConfig } from "./commands/config.js";
@@ -86,6 +87,11 @@ async function main(): Promise<void> {
   const vaultPath = resolveVaultPath(cfg);
   await ensureVaultStructure(vaultPath);
 
+  // Verify update health
+  const updater = new Updater();
+  await updater.checkHealthAndRollback();
+
+  session.currentProjectSlug = null;
   const { runVaultMigrations } = await import("./core/migrations.js");
   await runVaultMigrations(vaultPath);
 

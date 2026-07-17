@@ -1,8 +1,10 @@
 // src/sync/engine.ts
-import { join } from "node:path";
+import { resolve, join, relative, isAbsolute } from "node:path";
 import { unlink } from "node:fs/promises";
 import { uploadFileResumable, updateFileResumable } from "../integrations/googleDrive/upload.js";
 import { downloadFile, deleteDriveFile } from "../integrations/googleDrive/download.js";
+import { resolveNestedFolder } from "../integrations/googleDrive/layout.js";
+import { basename } from "node:path";
 import type { SyncPlan, SyncManifest } from "./types.js";
 import { getAbortController } from "../core/cancellation.js";
 
@@ -14,12 +16,24 @@ export async function executeSyncPlan(
   onProgress: (action: string, progress: string) => void
 ): Promise<void> {
   const signal = getAbortController().signal;
+  const folderCache: Record<string, string> = {};
 
   for (const action of plan.actions) {
     if (signal.aborted) throw new Error("Sync aborted");
 
     const entry = action.entry;
-    const localPath = join(localDir, entry.relativePath);
+    const root = resolve(localDir);
+    const target = resolve(root, entry.relativePath);
+    const rel = relative(root, target);
+
+    const inside = rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+    if (!inside || /^[a-zA-Z]:/.test(entry.relativePath) || entry.relativePath.startsWith("\\\\")) {
+      console.warn(`Path traversal detected and blocked: ${entry.relativePath}`);
+      entry.state = "error" as any;
+      continue;
+    }
+
+    const localPath = target;
     const appProps = { relativePath: entry.relativePath };
 
     try {
@@ -28,8 +42,10 @@ export async function executeSyncPlan(
         if (entry.remoteFileId) {
           await updateFileResumable(entry.remoteFileId, localPath, { signal, appProperties: appProps });
         } else {
-          entry.remoteFileId = await uploadFileResumable(localPath, entry.relativePath, {
-            parentId: remoteFolderId,
+          const actualParentId = await resolveNestedFolder(entry.relativePath, remoteFolderId, folderCache);
+          const fileName = basename(entry.relativePath);
+          entry.remoteFileId = await uploadFileResumable(localPath, fileName, {
+            parentId: actualParentId,
             signal,
             appProperties: appProps,
           });
@@ -53,12 +69,15 @@ export async function executeSyncPlan(
         entry.state = "synced";
         manifest.entries[entry.relativePath] = entry;
 
-      } else if (action.type === "delete_local") {
-        onProgress(`Deleting local ${entry.relativePath}...`, "");
-        try {
-          await unlink(localPath);
-        } catch {}
-        delete manifest.entries[entry.relativePath];
+      } else if (action.type === "mark_tombstone") {
+        onProgress(`Marking tombstone for ${entry.relativePath}...`, "");
+        entry.tombstone = {
+          relativePath: entry.relativePath,
+          deletedRemoteAt: new Date().toISOString(),
+          resolution: "pending",
+          ...(entry.remoteFileId ? { remoteFileId: entry.remoteFileId } : {})
+        };
+        manifest.entries[entry.relativePath] = entry;
 
       } else if (action.type === "delete_remote") {
         onProgress(`Deleting remote ${entry.relativePath}...`, "");

@@ -1,5 +1,5 @@
 // src/sync/manifest.ts
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type { SyncManifest, SyncEntry } from "./types.js";
@@ -11,7 +11,15 @@ export async function loadManifest(manifestPath: string): Promise<SyncManifest> 
   try {
     const data = await readFile(manifestPath, "utf-8");
     return JSON.parse(data) as SyncManifest;
-  } catch {
+  } catch (err: any) {
+    if (err instanceof SyntaxError) {
+      const backupPath = `${manifestPath}.corrupt.${Date.now()}`;
+      try { await copyFile(manifestPath, backupPath); } catch {}
+      const e = new Error("SYNC_MANIFEST_CORRUPTED");
+      e.name = "SyncError";
+      throw e;
+    }
+    // If other error (e.g., read error), return empty
     return { version: 1, entries: {} };
   }
 }
