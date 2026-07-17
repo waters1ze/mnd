@@ -88,7 +88,13 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
 ];
 
 // Multi-word commands (matched by prefix)
-const MULTI_WORD_COMMANDS = ["show history", "full new", "full show", "rules review", "export validate", "export reveal", "export retry"];
+const MULTI_WORD_COMMANDS = [
+  "show history", "full new", "full show", "rules review", 
+  "export validate", "export reveal", "export retry",
+  "sync setup", "sync status", "sync now", "sync push", "sync pull", 
+  "sync conflicts", "sync resolve", "sync pause", "sync resume", "sync disconnect",
+  "update check", "update status", "update install", "update rollback"
+];
 
 let customRegistry: CommandEntry[] = [];
 

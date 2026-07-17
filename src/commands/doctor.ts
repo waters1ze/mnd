@@ -22,6 +22,7 @@ export async function handleDoctor(rawArgs: string[], rawInput: string): Promise
   const results = {
     runtime: await checkRuntime(args),
     config: await checkConfig(args),
+    sync: await checkSync(args),
     media: await checkMedia(args),
     project: session.currentProjectSlug ? await checkProject(args) : null,
   };
@@ -35,6 +36,7 @@ export async function handleDoctor(rawArgs: string[], rawInput: string): Promise
   console.log(chalk.bold("\n🩺 MND Doctor Report"));
   printSection("Runtime & OS", results.runtime);
   printSection("Config & Vault", results.config);
+  printSection("Sync & Cloud", results.sync);
   printSection("Media Tools", results.media);
   
   if (results.project) {
@@ -53,10 +55,53 @@ async function checkRuntime(args: DoctorArgs) {
 
 async function checkConfig(args: DoctorArgs) {
   const cfg = await loadConfig();
-  return [
+  const checks = [
     { name: "Config Schema", status: "PASS", detail: "Loaded successfully" },
     { name: "Profile", status: "PASS", detail: cfg.profile },
   ];
+
+  if (!process.env.MND_GOOGLE_CLIENT_ID && !process.env.MND_GOOGLE_CLIENT_CONFIG) {
+    checks.push({ name: "Google OAuth", status: "WARN", detail: "GOOGLE_OAUTH_NOT_CONFIGURED" });
+  } else {
+    checks.push({ name: "Google OAuth", status: "PASS", detail: "Client Configured" });
+  }
+
+  return checks;
+}
+
+async function checkSync(args: DoctorArgs) {
+  const { GoogleAuthProvider } = await import("../auth/googleAuth.js");
+  const auth = new GoogleAuthProvider();
+  const summary = await auth.getAccountSummary();
+  
+  if (!summary || summary.status === "logged_out") {
+    return [
+      { name: "Drive Sync", status: "WARN", detail: "Not logged in" },
+    ];
+  }
+
+  if (summary.status === "login_required") {
+    return [
+      { name: "Drive Sync", status: "FAIL", detail: "Token revoked or expired. Run /login again." },
+    ];
+  }
+
+  const checks = [
+    { name: "Google Account", status: "PASS", detail: summary.email || summary.accountId },
+  ];
+
+  if (!args.noNetwork) {
+    try {
+      await auth.refresh();
+      checks.push({ name: "Token Refresh", status: "PASS", detail: "Success" });
+    } catch (err: any) {
+      checks.push({ name: "Token Refresh", status: "FAIL", detail: err.message });
+    }
+  } else {
+    checks.push({ name: "Token Refresh", status: "PASS", detail: "Skipped (offline)" });
+  }
+
+  return checks;
 }
 
 async function checkMedia(args: DoctorArgs) {
