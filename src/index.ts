@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+// src/index.ts — Entry point
+import { execSync } from "node:child_process";
+import { dirname } from "node:path";
+import chalk from "chalk";
+import ffmpegPath from "ffmpeg-static";
+// @ts-ignore
+import ffprobeStatic from "ffprobe-static";
+import { loadConfig, resolveVaultPath, configExists } from "./core/config.js";
+import { ensureVaultStructure } from "./core/vault.js";
+import { secretsHasKey } from "./core/secrets.js";
+import { runSetupWizard } from "./ui/setupWizard.js";
+import { registerCommands } from "./repl/router.js";
+import { startRepl } from "./repl/loop.js";
+
+// ─── Import all command handlers ──────────────────────────────────────────────
+import { handleConfig } from "./commands/config.js";
+import { handleOpen } from "./commands/open.js";
+import { handleCreate } from "./commands/create.js";
+import { handleSort } from "./commands/sort.js";
+import { handleAnalyze } from "./commands/analyze.js";
+import { handlePrompt } from "./commands/prompt.js";
+import { handleApprove } from "./commands/approve.js";
+import { handleFix } from "./commands/fix.js";
+import { handleShowHistory } from "./commands/showHistory.js";
+import { handleFull } from "./commands/full.js";
+import { handleThumbnail } from "./commands/thumbnail.js";
+import { handleRefactor } from "./commands/refactor.js";
+import { handleRulesReview } from "./commands/rulesReview.js";
+import { handleStatus } from "./commands/status.js";
+
+// ─── Startup checks ───────────────────────────────────────────────────────────
+
+function checkFFmpeg(): void {
+  const pathStr = ffmpegPath as unknown as string;
+  const ffprobePathStr = ffprobeStatic.path;
+  const paths = [pathStr, ffprobePathStr].filter(Boolean);
+
+  const keys = Object.keys(process.env).filter((k) => k.toLowerCase() === "path");
+  for (const p of paths) {
+    const dir = dirname(p);
+    for (const key of keys) {
+      process.env[key] = dir + (process.platform === "win32" ? ";" : ":") + process.env[key];
+    }
+  }
+
+  try {
+    execSync("ffmpeg -version", { stdio: "ignore" });
+    execSync("ffprobe -version", { stdio: "ignore" });
+  } catch {
+    console.error(chalk.red("✗ FFmpeg or FFprobe not found in PATH. Please install FFmpeg."));
+    process.exit(1);
+  }
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  checkFFmpeg();
+
+  const hasConfig = await configExists();
+  const hasGroqKey = await secretsHasKey("groq_api_key");
+  if (!hasConfig || !hasGroqKey) {
+    await runSetupWizard();
+  }
+
+  const cfg = await loadConfig();
+  const vaultPath = resolveVaultPath(cfg);
+  await ensureVaultStructure(vaultPath);
+
+  // Register all commands
+  registerCommands([
+    { name: "config", handler: handleConfig },
+    { name: "open", handler: handleOpen },
+    { name: "create", handler: handleCreate },
+    { name: "sort", handler: handleSort },
+    { name: "analyze", aliases: ["analyse"], handler: handleAnalyze },
+    { name: "prompt", handler: handlePrompt },
+    { name: "approve", handler: handleApprove },
+    { name: "fix", handler: handleFix },
+    { name: "show history", handler: handleShowHistory },
+    { name: "full new", handler: (args, raw) => handleFull(["new", ...args], raw) },
+    { name: "full show", handler: (args, raw) => handleFull(["show", ...args], raw) },
+    { name: "thumbnail", handler: handleThumbnail },
+    { name: "refactor", handler: handleRefactor },
+    { name: "rules review", handler: handleRulesReview },
+    { name: "status", handler: handleStatus },
+    {
+      name: "help",
+      handler: async () => {
+        console.log(chalk.gray([
+          "Commands: config, open, create, sort, analyze, prompt, approve,",
+          "          fix, show history, full new, full show, thumbnail,",
+          "          refactor, rules review, status",
+        ].join("\n")));
+      },
+    },
+  ]);
+
+  await startRepl();
+}
+
+main().catch((err) => {
+  console.error(chalk.red("Fatal:"), err);
+  process.exit(1);
+});

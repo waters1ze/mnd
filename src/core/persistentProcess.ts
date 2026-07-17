@@ -1,0 +1,245 @@
+// src/core/persistentProcess.ts
+import {
+  spawn,
+  ChildProcess,
+  SpawnOptionsWithoutStdio,
+} from "node:child_process";
+import chalk from "chalk";
+
+export interface PersistentProcessOptions {
+  command: string;
+  args: string[];
+  readyPattern?: RegExp;        // Detect readiness from stdout
+  healthCheckIntervalMs: number;
+  responseTimeoutMs: number;    // Kill + restart if response exceeds this
+  name?: string;                // For logging
+  env?: NodeJS.ProcessEnv;
+}
+
+interface QueueItem {
+  payload: string;
+  resolve: (value: string) => void;
+  reject: (reason: unknown) => void;
+  enqueuedAt: number;
+}
+
+export type ProcessState = "stopped" | "starting" | "ready" | "busy" | "restarting";
+
+export class PersistentProcess {
+  private child: ChildProcess | null = null;
+  private queue: QueueItem[] = [];
+  private busy = false;
+  private state: ProcessState = "stopped";
+  private stdoutBuffer = "";
+  private healthTimer: ReturnType<typeof setInterval> | null = null;
+  private currentItem: QueueItem | null = null;
+  private currentItemStartedAt = 0;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(private readonly opts: PersistentProcessOptions) {}
+
+  get name(): string {
+    return this.opts.name ?? this.opts.command;
+  }
+
+  getStatus(): { alive: boolean; queueLength: number; state: ProcessState } {
+    return {
+      alive: this.child !== null && this.child.exitCode === null,
+      queueLength: this.queue.length + (this.currentItem ? 1 : 0),
+      state: this.state,
+    };
+  }
+
+  async start(): Promise<void> {
+    if (this.state === "ready" || this.state === "starting") return;
+    this.state = "starting";
+
+    await new Promise<void>((resolve, reject) => {
+      const spawnOpts: SpawnOptionsWithoutStdio = {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: this.opts.env ?? process.env,
+        shell: false,
+      };
+
+      this.child = spawn(this.opts.command, this.opts.args, spawnOpts);
+      this.stdoutBuffer = "";
+
+      this.child.stdout?.on("data", (chunk: Buffer) => {
+        this.stdoutBuffer += chunk.toString();
+        this.onStdout();
+      });
+
+      this.child.stderr?.on("data", (chunk: Buffer) => {
+        // Only show stderr in debug mode
+        if (process.env["MND_DEBUG"]) {
+          process.stderr.write(`[${this.name}] ${chunk.toString()}`);
+        }
+      });
+
+      this.child.on("error", (err) => {
+        if (this.state === "starting") reject(err);
+        else this.scheduleRestart();
+      });
+
+      this.child.on("exit", (code) => {
+        if (this.state !== "stopped") {
+          if (process.env["MND_DEBUG"]) {
+            console.warn(chalk.yellow(`[${this.name}] exited with code ${code}, scheduling restart`));
+          }
+          this.child = null;
+          this.scheduleRestart();
+        }
+      });
+
+      if (!this.opts.readyPattern) {
+        // No ready pattern — consider ready immediately
+        this.state = "ready";
+        this.startHealthCheck();
+        resolve();
+        return;
+      }
+
+      // Wait for ready pattern in stdout
+      const onData = (chunk: Buffer): void => {
+        const text = chunk.toString();
+        if (this.opts.readyPattern!.test(text)) {
+          this.child?.stdout?.off("data", onData);
+          this.state = "ready";
+          this.startHealthCheck();
+          resolve();
+        }
+      };
+      this.child.stdout?.on("data", onData);
+
+      // Timeout for readiness
+      setTimeout(() => {
+        if (this.state === "starting") {
+          reject(new Error(`[${this.name}] timed out waiting for ready pattern`));
+        }
+      }, 30_000);
+    });
+  }
+
+  send(payload: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ payload, resolve, reject, enqueuedAt: Date.now() });
+      this.processQueue();
+    });
+  }
+
+  private onStdout(): void {
+    // Check if we have a complete newline-delimited response
+    const newlineIdx = this.stdoutBuffer.indexOf("\n");
+    if (newlineIdx === -1) return;
+
+    const line = this.stdoutBuffer.slice(0, newlineIdx);
+    this.stdoutBuffer = this.stdoutBuffer.slice(newlineIdx + 1);
+
+    if (this.currentItem) {
+      const item = this.currentItem;
+      this.currentItem = null;
+      this.busy = false;
+      this.state = "ready";
+      item.resolve(line);
+      // Process remaining buffer recursively
+      this.onStdout();
+      this.processQueue();
+    }
+  }
+
+  private processQueue(): void {
+    if (this.busy || this.queue.length === 0 || this.state !== "ready") return;
+    if (!this.child || this.child.exitCode !== null) {
+      this.scheduleRestart();
+      return;
+    }
+
+    const item = this.queue.shift()!;
+    this.currentItem = item;
+    this.currentItemStartedAt = Date.now();
+    this.busy = true;
+    this.state = "busy";
+
+    try {
+      this.child.stdin?.write(item.payload + "\n");
+    } catch (err) {
+      this.currentItem = null;
+      this.busy = false;
+      this.state = "ready";
+      item.reject(err);
+      this.scheduleRestart();
+    }
+  }
+
+  private startHealthCheck(): void {
+    if (this.healthTimer) clearInterval(this.healthTimer);
+    this.healthTimer = setInterval(() => this.healthCheck(), this.opts.healthCheckIntervalMs);
+  }
+
+  private healthCheck(): void {
+    // Check if child is still alive
+    if (!this.child || this.child.exitCode !== null) {
+      this.scheduleRestart();
+      return;
+    }
+
+    // Check if current request has been hanging too long
+    if (this.currentItem && (Date.now() - this.currentItemStartedAt) > this.opts.responseTimeoutMs) {
+      console.warn(chalk.yellow(`[${this.name}] response timeout — restarting`));
+      const stuck = this.currentItem;
+      this.currentItem = null;
+      // Put stuck item back at front of queue for retry
+      this.queue.unshift(stuck);
+      this.busy = false;
+      this.child.kill("SIGKILL");
+      this.child = null;
+      this.scheduleRestart();
+    }
+  }
+
+  private scheduleRestart(): void {
+    if (this.state === "restarting" || this.state === "starting") return;
+    this.state = "restarting";
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    // Small delay before restart
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      this.restart().catch((err) => {
+        console.error(chalk.red(`[${this.name}] restart failed: ${err}`));
+      });
+    }, 500);
+  }
+
+  async restart(): Promise<void> {
+    this.stop(false);
+    await this.start();
+    this.processQueue();
+  }
+
+  stop(clearQueue = true): void {
+    this.state = "stopped";
+    if (this.healthTimer) {
+      clearInterval(this.healthTimer);
+      this.healthTimer = null;
+    }
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+    if (this.child) {
+      try { this.child.kill("SIGKILL"); } catch { /* ignore */ }
+      this.child = null;
+    }
+    if (clearQueue) {
+      for (const item of this.queue) {
+        item.reject(new Error(`[${this.name}] process stopped`));
+      }
+      if (this.currentItem) {
+        this.currentItem.reject(new Error(`[${this.name}] process stopped`));
+        this.currentItem = null;
+      }
+      this.queue = [];
+    }
+    this.busy = false;
+  }
+}

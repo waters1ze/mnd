@@ -1,0 +1,16 @@
+{
+  "projectSlug": "test-regression",
+  "sourceVideoPath": "test/fixtures/reference_video.mp4",
+  "transcript": [
+    { "start": 0.0, "end": 3.2, "text": "Hello, this is a test video." },
+    { "start": 4.5, "end": 8.1, "text": "We are testing the mnd pipeline." },
+    { "start": 9.0, "end": 12.5, "text": "This should produce a valid edit plan." }
+  ],
+  "cuts": [
+    { "id": "cut-1", "startSec": 3.2, "endSec": 4.5, "reason": "pause" }
+  ],
+  "overlays": [],
+  "audioTrack": { "musicAssetId": null, "syncToBeat": false },
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "version": 1
+}
