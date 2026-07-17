@@ -5,7 +5,8 @@ import { select, confirm } from "@clack/prompts";
 import chalk from "chalk";
 import { loadConfig, resolveVaultPath, resolveInboxPath } from "../core/config.js";
 import { writeAssetSidecar } from "../core/vault.js";
-import { classifyAsset, isAntigravityAvailable } from "../core/antigravityClient.js";
+import { ensureAntigravityCli } from "../integrations/antigravityDiscovery.js";
+import { classifyAsset } from "../core/antigravityClient.js";
 import { confirmSortCost } from "../core/costEstimate.js";
 import { session } from "../repl/loop.js";
 import { renderProgressBar } from "../ui/progressBar.js";
@@ -13,13 +14,10 @@ import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
 
 export const handleSort: CommandHandler = async () => {
+  const ok = await ensureAntigravityCli();
+  if (!ok) return;
+
   const cfg = await loadConfig();
-  const cliPath = cfg.connections.antigravity_cli_path;
-  if (!isAntigravityAvailable(cliPath)) {
-    console.log(chalk.red(`Antigravity CLI not found at <${cliPath}>.`));
-    console.log(chalk.gray("Install it or set connections.antigravity_cli_path in config, then retry. 'sort' and 'thumbnail' require it; 'analyze' and 'approve' do not."));
-    return;
-  }
 
   const vaultPath = resolveVaultPath(cfg);
   const inboxPath = resolveInboxPath(cfg);
@@ -40,8 +38,8 @@ export const handleSort: CommandHandler = async () => {
   }
 
   // Cost estimate for large batches
-  const ok = await confirmSortCost(files.length);
-  if (!ok) { console.log(chalk.gray("Cancelled.")); return; }
+  const costOk = await confirmSortCost(files.length);
+  if (!costOk) { console.log(chalk.gray("Cancelled.")); return; }
 
   console.log(chalk.hex(theme.accent)(`Sorting ${files.length} files from inbox...\n`));
 

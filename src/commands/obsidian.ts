@@ -1,48 +1,58 @@
-import { exec } from "node:child_process";
 import chalk from "chalk";
+import { confirm } from "@clack/prompts";
 import { loadConfig, resolveVaultPath } from "../core/config.js";
+import { getRegisteredVaultId, openRegisteredVault, launchObsidianApp } from "../integrations/obsidian.js";
+import { writeFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
 
-function buildObsidianUri(vaultPath: string): string {
-  // Obsidian supports opening (and, if needed, creating/registering) a vault
-  // directly by absolute path via the `path` URI parameter — no need for the
-  // vault to already be known to Obsidian by name.
-  return `obsidian://open?path=${encodeURIComponent(vaultPath)}`;
-}
-
-function openUri(uri: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const platform = process.platform;
-    let cmd: string;
-    if (platform === "win32") {
-      // 'start' needs an empty title arg when the URL is quoted.
-      // We use cmd /c start explicitly under Windows to ensure the URI handler starts cleanly.
-      cmd = `cmd /c start "" "${uri}"`;
-    } else if (platform === "darwin") {
-      cmd = `open "${uri}"`;
-    } else {
-      cmd = `xdg-open "${uri}"`;
+function createHomeNoteIfMissing(vaultPath: string): void {
+  const homePath = join(vaultPath, "Home.md");
+  if (!existsSync(homePath)) {
+    const content = `# MND Vault Home\n\nWelcome to your MND vault. Here you can find your projects and assets.\n\n- [[Projects/]]\n- [[Assets/]]\n- [[Global_Rules/]]\n- [[Styles/]]\n- [[Skills/]]\n`;
+    try {
+      writeFileSync(homePath, content, "utf-8");
+    } catch {
+      // ignore
     }
-    exec(cmd, (err) => (err ? reject(err) : resolve()));
-  });
+  }
 }
 
 export const handleObsidian: CommandHandler = async () => {
   const cfg = await loadConfig();
   const vaultPath = resolveVaultPath(cfg);
-  const uri = buildObsidianUri(vaultPath);
 
-  console.log(chalk.gray(`Opening vault in Obsidian: ${vaultPath}`));
+  createHomeNoteIfMissing(vaultPath);
 
-  try {
-    await openUri(uri);
-    console.log(chalk.hex(theme.accent)("✓ Sent open request to Obsidian."));
-  } catch (err) {
-    console.log(chalk.red("✗ Could not launch Obsidian automatically."));
-    console.log(chalk.gray("Make sure Obsidian is installed and its obsidian:// URI handler is registered."));
-    console.log(chalk.gray(`You can also open it manually: Obsidian → "Open folder as vault" → ${vaultPath}`));
-    const msg = err instanceof Error ? err.message : String(err);
-    console.log(chalk.gray(`(${msg})`));
+  console.log(chalk.gray(`Checking Obsidian registration for vault: ${vaultPath}`));
+  
+  const vaultId = await getRegisteredVaultId(vaultPath);
+
+  if (vaultId) {
+    try {
+      await openRegisteredVault(vaultId);
+      console.log(chalk.hex(theme.accent)(`✓ Opened registered Obsidian vault: mnd`));
+    } catch (err) {
+      console.log(chalk.red("✗ Obsidian is not installed or its protocol handler is unavailable."));
+      console.log(chalk.gray(`Error: ${err instanceof Error ? err.message : String(err)}`));
+    }
+  } else {
+    console.log(chalk.yellow(`The mnd folder exists but Obsidian has not registered it as a vault yet.`));
+    const shouldOpen = await confirm({
+      message: `Offer to open Obsidian now so you can choose "Open folder as vault"?`,
+      initialValue: true,
+    });
+    
+    if (shouldOpen) {
+      try {
+        await launchObsidianApp();
+        console.log(chalk.hex(theme.accent)("Obsidian launched. Complete the one-time “Open folder as vault” step:"));
+        console.log(chalk.white(vaultPath));
+      } catch (err) {
+        console.log(chalk.red("✗ Could not launch Obsidian automatically."));
+        console.log(chalk.gray(`Error: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    }
   }
 };

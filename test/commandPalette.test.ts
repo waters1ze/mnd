@@ -1,5 +1,5 @@
 // test/commandPalette.test.ts
-import { filterCommands, handleSelection } from "../src/ui/commandPalette.js";
+import { filterCommands, handleSelection } from "../src/ui/replInput.js";
 import type { CommandDefinition } from "../src/repl/router.js";
 
 const TEST_REGISTRY: CommandDefinition[] = [

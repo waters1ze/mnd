@@ -6,15 +6,7 @@ import { PersistentProcess } from "./persistentProcess.js";
 
 let _process: PersistentProcess | null = null;
 
-export function isAntigravityAvailable(cliPath: string): boolean {
-  if (existsSync(cliPath)) return true;
-  try {
-    execSync(`"${cliPath}" --version`, { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
+
 
 export interface AssetClassification {
   type: string;

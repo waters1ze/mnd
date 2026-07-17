@@ -1,20 +1,18 @@
 // src/commands/thumbnail.ts
 import chalk from "chalk";
 import { loadConfig, resolveVaultPath } from "../core/config.js";
+import { ensureAntigravityCli } from "../integrations/antigravityDiscovery.js";
 import { loadProjectState } from "../core/projectState.js";
-import { generateThumbnail, generateImage, isAntigravityAvailable } from "../core/antigravityClient.js";
+import { generateThumbnail, generateImage } from "../core/antigravityClient.js";
 import { session } from "../repl/loop.js";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
 
 export const handleThumbnail: CommandHandler = async (args) => {
+  const ok = await ensureAntigravityCli();
+  if (!ok) return;
+
   const cfg = await loadConfig();
-  const cliPath = cfg.connections.antigravity_cli_path;
-  if (!isAntigravityAvailable(cliPath)) {
-    console.log(chalk.red(`Antigravity CLI not found at <${cliPath}>.`));
-    console.log(chalk.gray("Install it or set connections.antigravity_cli_path in config, then retry. 'sort' and 'thumbnail' require it; 'analyze' and 'approve' do not."));
-    return;
-  }
 
   const vaultPath = resolveVaultPath(cfg);
   const slug = session.currentProjectSlug;
