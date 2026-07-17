@@ -23,7 +23,17 @@ export async function atomicWriteFile(targetPath: string, data: string | Buffer)
   }
 
   // Atomic rename over the target
-  await rename(tempPath, targetPath);
+  try {
+    await rename(tempPath, targetPath);
+  } catch (err: any) {
+    // Clean up temp file on failure
+    try {
+      await unlink(tempPath);
+    } catch {
+      // ignore unlink error
+    }
+    throw err;
+  }
 }
 
 /**

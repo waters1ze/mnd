@@ -3,6 +3,7 @@ import { join } from "node:path";
 import chalk from "chalk";
 import { existsSync } from "node:fs";
 import { readFile, mkdir, rename } from "node:fs/promises";
+import { Buffer } from "node:buffer";
 import YAML from "yaml";
 import { backupFile, atomicWriteFile } from "./atomic.js";
 import { getAppDataDir } from "./paths.js";
@@ -16,7 +17,8 @@ export async function runConfigMigrations(): Promise<void> {
   const configPath = join(getAppDataDir(), "config.yaml");
   if (!existsSync(configPath)) return;
 
-  const raw = await readFile(configPath, "utf-8");
+  const rawBuffer = await readFile(configPath);
+  const raw = rawBuffer.toString("utf-8");
   let parsed: any;
   try {
     parsed = YAML.parse(raw);
@@ -79,14 +81,36 @@ export async function runConfigMigrations(): Promise<void> {
   try {
     const checkRaw = await readFile(configPath, "utf-8");
     const checkParsed = YAML.parse(checkRaw);
-    if (checkParsed.version !== LATEST_CONFIG_VERSION) throw new Error("Version mismatch after write");
+    
+    // Strict schema check
+    if (checkParsed.version !== LATEST_CONFIG_VERSION) throw new Error("Version mismatch");
+    if (typeof checkParsed.profile !== "string") throw new Error("Invalid profile");
+    if (typeof checkParsed.vault_path !== "string") throw new Error("Invalid vault_path");
+    if (typeof checkParsed.connections !== "object") throw new Error("Invalid connections");
+    if ("antigravity_cli_path" in checkParsed.connections) throw new Error("Legacy antigravity_cli_path remains");
+    if (typeof checkParsed.connections.antigravity !== "object") throw new Error("Invalid connections.antigravity");
+    if (typeof checkParsed.obsidian !== "object") throw new Error("Invalid obsidian");
+    if (typeof checkParsed.models?.hybrid?.image_gen !== "object") throw new Error("Missing hybrid image_gen");
+    if (typeof checkParsed.models?.local?.image_gen !== "object") throw new Error("Missing local image_gen");
+
   } catch (e: any) {
-    console.log(chalk.red(`\n[!] Config migration verification failed: ${e.message}. Rolling back.`));
-    if (backupPath && existsSync(backupPath)) {
-      const backupRaw = await readFile(backupPath, "utf-8");
-      await atomicWriteFile(configPath, backupRaw);
+    const errorMsg = e.message;
+    console.log(chalk.red(`\n[!] Config migration verification failed: ${errorMsg}. Rolling back.`));
+    
+    // Strict rollback using Buffer
+    try {
+      await atomicWriteFile(configPath, rawBuffer);
+      const rollbackCheck = await readFile(configPath);
+      if (!Buffer.from(rollbackCheck).equals(Buffer.from(rawBuffer))) {
+         console.log(chalk.bgRed.white(`\n[FATAL] Rollback buffer mismatch! Config may be corrupted.`));
+      } else {
+         console.log(chalk.yellow(`[MIGRATION] Rollback successful.`));
+      }
+    } catch (rbErr: any) {
+      console.log(chalk.bgRed.white(`\n[FATAL] Rollback failed: ${rbErr.message}`));
     }
-    process.exit(1);
+    
+    throw new Error(`Migration failed: ${errorMsg}`);
   }
   console.log(chalk.green("✓ Config migration successful."));
 }

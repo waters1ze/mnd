@@ -112,7 +112,8 @@ export async function startRepl(): Promise<void> {
         }
       }
 
-      const agReady = (await getVerifiedAntigravity()).status === "ready" ? "ready" : "missing";
+      const agStatus = (await getVerifiedAntigravity()).status;
+      const agReady = (agStatus === "process_started" || agStatus === "operation_verified") ? "ready" : "missing";
 
       updateCommandContext({
         project: projectCtx,

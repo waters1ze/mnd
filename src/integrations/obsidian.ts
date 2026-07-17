@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { backupFile, atomicWriteFile } from "../core/atomic.js";
 import { getAppDataDir } from "../core/paths.js";
 import crypto from "node:crypto";
+import { Buffer } from "node:buffer";
 
 export function normalizeVaultPath(p: string): string {
   let n = resolve(normalize(p));
@@ -45,7 +46,8 @@ export async function registerVaultSafely(targetPath: string): Promise<{ success
   }
 
   try {
-    const raw = await readFile(obsidianJsonPath, "utf-8");
+    const rawBuffer = await readFile(obsidianJsonPath);
+    const raw = rawBuffer.toString("utf-8");
     let data;
     try {
        data = JSON.parse(raw);
@@ -80,6 +82,12 @@ export async function registerVaultSafely(targetPath: string): Promise<{ success
       return { success: false, vaultId: null, error: "Obsidian is currently running. Please close it before registering a new vault." };
     }
 
+    // Check for concurrent modification
+    const preWriteBuffer = await readFile(obsidianJsonPath);
+    if (!Buffer.from(preWriteBuffer).equals(Buffer.from(rawBuffer))) {
+       return { success: false, vaultId: null, error: "obsidian.json was modified concurrently" };
+    }
+
     // Backup before write
     const backupDir = join(getAppDataDir(), "backups");
     await backupFile(obsidianJsonPath, backupDir, "obsidian_pre_reg");
@@ -98,13 +106,24 @@ export async function registerVaultSafely(targetPath: string): Promise<{ success
     await atomicWriteFile(obsidianJsonPath, JSON.stringify(data, null, 2));
 
     // Reread verification
-    const readback = await readFile(obsidianJsonPath, "utf-8");
-    const verData = JSON.parse(readback);
-    if (!verData.vaults || !verData.vaults[newId] || verData.vaults[newId].path !== targetPath) {
-      // Rollback
-      const backupRaw = await readFile(join(backupDir, "obsidian_pre_reg"), "utf-8");
-      await atomicWriteFile(obsidianJsonPath, backupRaw);
-      return { success: false, vaultId: null, error: "Verification failed after writing obsidian.json" };
+    try {
+       const readbackBuffer = await readFile(obsidianJsonPath);
+       const verData = JSON.parse(readbackBuffer.toString("utf-8"));
+       if (!verData.vaults || !verData.vaults[newId] || verData.vaults[newId].path !== targetPath) {
+         throw new Error("Verification failed after writing obsidian.json");
+       }
+    } catch (verErr: any) {
+       // Rollback
+       try {
+         await atomicWriteFile(obsidianJsonPath, rawBuffer);
+         const rollbackCheck = await readFile(obsidianJsonPath);
+         if (!Buffer.from(rollbackCheck).equals(Buffer.from(rawBuffer))) {
+            return { success: false, vaultId: null, error: "Rollback buffer mismatch! obsidian.json may be corrupted." };
+         }
+       } catch (rbErr: any) {
+         return { success: false, vaultId: null, error: `Rollback failed: ${rbErr.message}` };
+       }
+       return { success: false, vaultId: null, error: verErr.message };
     }
 
     return { success: true, vaultId: newId };

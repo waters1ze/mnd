@@ -1,36 +1,38 @@
 import { registerVaultSafely } from "../src/integrations/obsidian.js";
 
-jest.mock("node:child_process", () => ({
-  exec: jest.fn((cmd, cb) => cb(null, "INFO: No tasks are running")),
-  spawn: jest.fn()
+jest.mock("node:fs", () => ({
+  existsSync: jest.fn().mockReturnValue(true)
 }));
-
-let fileContent = '{"vaults":{}}';
 
 jest.mock("node:fs/promises", () => ({
-  readFile: jest.fn(() => Promise.resolve(fileContent)),
-  writeFile: jest.fn((path, content) => {
-    // If it's a temp file, update fileContent when atomicWriteFile renames?
-    // Actually, we just update fileContent here to trick the verify step
-    fileContent = content.toString();
-    return Promise.resolve();
-  }),
-  rename: jest.fn(() => Promise.resolve()),
-  mkdir: jest.fn().mockResolvedValue(undefined),
-  copyFile: jest.fn().mockResolvedValue(undefined)
+  readFile: jest.fn((path) => {
+    // Return buffer simulating a successful read of an updated obsidian.json
+    return Promise.resolve(Buffer.from(JSON.stringify({
+      vaults: {
+         "mockid": { path: "C:\\Test" }
+      }
+    })));
+  })
 }));
 
-jest.mock("node:fs", () => ({
-  existsSync: jest.fn().mockReturnValue(true),
-  openSync: jest.fn(),
-  closeSync: jest.fn(),
-  fsyncSync: jest.fn()
+jest.mock("../src/core/atomic.js", () => ({
+  backupFile: jest.fn().mockResolvedValue("backup"),
+  atomicWriteFile: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock("node:child_process", () => ({
+  exec: jest.fn((cmd, cb) => cb(null, "some other process"))
+}));
+
+jest.mock("node:crypto", () => ({
+  randomBytes: jest.fn().mockReturnValue(Buffer.from("mockid", "utf-8"))
 }));
 
 describe("obsidianRegistration", () => {
-  it("registers vault safely if not running", async () => {
-    const res = await registerVaultSafely("C:\\Fake\\Vault");
-    if (!res.success) console.error("Error from registerVaultSafely:", res.error);
+  it("registers a new vault securely", async () => {
+    process.env.APPDATA = "C:\\FakeAppData";
+    const res = await registerVaultSafely("C:\\Test");
+    console.log(res);
     expect(res.success).toBe(true);
     expect(res.vaultId).toBeTruthy();
   });

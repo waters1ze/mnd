@@ -17,6 +17,12 @@ describe("Config V1 -> V2 Migration", () => {
   it("should migrate v1 to v2 correctly", async () => {
     const v1Config = {
       version: 1,
+      profile: "hybrid",
+      vault_path: "C:\\Vault",
+      models: {
+        hybrid: { image_gen: {} },
+        local: { image_gen: {} }
+      },
       connections: {
         antigravity_cli_path: "C:\\path\\to\\antigravity.exe",
       },
@@ -41,6 +47,12 @@ describe("Config V1 -> V2 Migration", () => {
   it("should handle already v2 configs idempotently", async () => {
     const v2Config = {
       version: 2,
+      profile: "hybrid",
+      vault_path: "C:\\Vault",
+      models: {
+        hybrid: { image_gen: {} },
+        local: { image_gen: {} }
+      },
       connections: {
         antigravity: {
           discovery_mode: "manual",

@@ -141,9 +141,9 @@ async function checkIntegrations(args: DoctorArgs) {
 
   // Antigravity
   const agv = await getVerifiedAntigravity(args.fix);
-  if (agv.status === "ready") {
-    checks.push({ name: "Antigravity", status: "PASS", detail: `Ready (v${agv.installation?.version})` });
-    checks.push({ name: "AG Protocol", status: "PASS", detail: "JSON Handshake Verified" });
+  if (agv.status === "process_started" || agv.status === "operation_verified") {
+    checks.push({ name: "Antigravity", status: "PASS", detail: `${agv.status === "operation_verified" ? "Verified" : "Started"} (v${agv.installation?.version || "unknown"})` });
+    checks.push({ name: "AG Protocol", status: "PASS", detail: "JSON Protocol Advertised" });
     
     // Check Models
     const activeModel = cfg.models[cfg.profile]?.image_gen?.model;
@@ -156,7 +156,11 @@ async function checkIntegrations(args: DoctorArgs) {
       if (found) {
         checks.push({ name: "AG Model", status: "PASS", detail: `${activeModel} verified` });
       } else {
-        checks.push({ name: "AG Model", status: "FAIL", detail: `${activeModel} not provided by CLI` });
+        if (reportedModels.length === 0) {
+          checks.push({ name: "AG Model", status: "WARN", detail: `${activeModel} unverified (CLI does not enumerate models)` });
+        } else {
+          checks.push({ name: "AG Model", status: "FAIL", detail: `${activeModel} not provided by CLI` });
+        }
       }
     }
     
@@ -188,9 +192,13 @@ async function checkIntegrations(args: DoctorArgs) {
   if (vp && existsSync(vp)) {
     if (!existsSync(join(vp, ".obsidian"))) {
       if (args.fix) {
-        const { handleObsidian } = await import("./obsidian.js");
-        await handleObsidian(["repair"], "/obsidian repair");
-        checks.push({ name: "Vault Structure", status: "PASS", detail: "Repaired by fix" });
+        if (args.json) {
+           checks.push({ name: "Vault Structure", status: "action_required", action: "run /obsidian repair interactively", detail: "Missing .obsidian folder" });
+        } else {
+           const { handleObsidian } = await import("./obsidian.js");
+           await handleObsidian(["repair"], "/obsidian repair");
+           checks.push({ name: "Vault Structure", status: "PASS", detail: "Repaired by fix" });
+        }
       } else {
         checks.push({ name: "Vault Structure", status: "FAIL", detail: "Missing .obsidian folder" });
       }
@@ -203,12 +211,23 @@ async function checkIntegrations(args: DoctorArgs) {
        checks.push({ name: "Registration", status: "PASS", detail: `Registered (${regId})` });
     } else {
        if (args.fix) {
-         const { registerVaultSafely } = await import("../integrations/obsidian.js");
-         const reg = await registerVaultSafely(vp);
-         if (reg.success) {
-           checks.push({ name: "Registration", status: "PASS", detail: `Registered by fix (${reg.vaultId})` });
+         if (args.json) {
+            checks.push({ name: "Registration", status: "action_required", action: "run /obsidian repair interactively", detail: "Not registered in obsidian.json" });
          } else {
-           checks.push({ name: "Registration", status: "FAIL", detail: `Fix failed: ${reg.error}` });
+            const { registerVaultSafely } = await import("../integrations/obsidian.js");
+            // Ask for confirmation if in CLI / doctor mode
+            const p = await import("@clack/prompts");
+            const conf = await p.confirm({ message: `Register obsidian.json for vault ${vp}?` });
+            if (p.isCancel(conf) || !conf) {
+               checks.push({ name: "Registration", status: "FAIL", detail: "Fix aborted by user" });
+            } else {
+               const reg = await registerVaultSafely(vp);
+               if (reg.success) {
+                 checks.push({ name: "Registration", status: "PASS", detail: `Registered by fix (${reg.vaultId})` });
+               } else {
+                 checks.push({ name: "Registration", status: "FAIL", detail: `Fix failed: ${reg.error}` });
+               }
+            }
          }
        } else {
          checks.push({ name: "Registration", status: "FAIL", detail: "Not registered in obsidian.json" });

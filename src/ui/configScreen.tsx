@@ -243,18 +243,22 @@ export function ConfigScreen(): React.ReactElement {
         
         if (field.provider === "antigravity") {
           let opts: Option[] = [];
-          if (agvStatus?.status === "ready") {
+          if (agvStatus?.status === "operation_verified" || agvStatus?.status === "process_started") {
              opts.push({ value: "", label: "Auto / Antigravity default", availability: "available", local: true });
-             if (agvStatus.installation?.models) {
+             if (agvStatus.installation?.models && agvStatus.installation.models.length > 0) {
                agvStatus.installation.models.forEach(m => opts.push({ value: m.id, label: m.id, availability: "available", local: true }));
              }
           } else {
              opts.push({ value: "", label: "Antigravity not verified", availability: "unavailable", local: true });
           }
           if (!opts.find(o => o.value === cur) && cur) {
-            opts.push({ value: cur, label: cur, availability: "unknown", local: true });
+             opts.push({ value: cur, label: `${cur} (unverified)`, availability: "unknown", local: true });
           }
-          opts.push({value: "__custom__", label: "Custom model ID..."});
+          if (agvStatus?.status === "operation_verified" || agvStatus?.status === "process_started") {
+             if (agvStatus.installation?.models && agvStatus.installation.models.length > 0) {
+                 opts.push({value: "__custom__", label: "Custom model ID..."});
+             }
+          }
           setOptions(opts);
           const currentIdx = opts.findIndex(o => o.value === cur);
           setOptionIdx(currentIdx >= 0 ? currentIdx : 0);
@@ -341,8 +345,8 @@ export function ConfigScreen(): React.ReactElement {
                 if (agvScanning) return `${prefix}Antigravity: detecting...`;
                 if (!agvStatus) return `${prefix}Antigravity: Loading...`;
                 let st = agvStatus.status;
-                if (st === "ready") return [
-                  `${prefix}Antigravity: ✓ Ready`,
+                if (st === "operation_verified" || st === "process_started") return [
+                  `${prefix}Antigravity: ${st === "operation_verified" ? "✓ Verified" : "⚠ Started"}`,
                   `      Version: ${agvStatus.installation?.version || "unknown"}`,
                   `      Location: ${agvStatus.installation?.executablePath}`,
                   `      [Enter] Select model  [R] Rescan  [D] Diagnostics`
@@ -366,8 +370,8 @@ export function ConfigScreen(): React.ReactElement {
                 if (agvScanning) return `${prefix}Antigravity: detecting...`;
                 if (!agvStatus) return `${prefix}Antigravity: Loading...`;
                 let st = agvStatus.status;
-                if (st === "ready") return [
-                  `${prefix}Antigravity: ✓ Ready`,
+                if (st === "operation_verified" || st === "process_started") return [
+                  `${prefix}Antigravity: ${st === "operation_verified" ? "✓ Verified" : "⚠ Started"}`,
                   `      Version: ${agvStatus.installation?.version || "unknown"}`,
                   `      Location: ${agvStatus.installation?.executablePath}`,
                   `      [Enter] Select model  [R] Rescan  [D] Diagnostics`
