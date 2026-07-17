@@ -10,6 +10,7 @@ import type { MndConfig } from "../types/config.js";
 import { getModelCatalog } from "../models/modelCatalog.js";
 import type { DiscoveredModel } from "../models/types.js";
 import { OllamaPullProgress } from "./OllamaPullProgress.js";
+import { getVerifiedAntigravity, discoverAntigravityCli, type AntigravityDiscoveryResult } from "../integrations/antigravityDiscovery.js";
 
 type SectionName = "profile" | "connections" | "models" | "fallback" | "export";
 const SECTIONS: SectionName[] = ["profile", "connections", "models", "fallback", "export"];
@@ -26,7 +27,9 @@ type ConfigField =
   | { kind: "boolean"; label: string; getValue: (c: MndConfig) => string; setValue: (c: MndConfig, v: boolean) => void; }
   | { kind: "number"; label: string; min: number; max: number; getValue: (c: MndConfig) => string; setValue: (c: MndConfig, v: number) => void; }
   | { kind: "text"; label: string; validate?: (v: string) => string | null; getValue: (c: MndConfig) => string; setValue: (c: MndConfig, v: string) => void; }
-  | { kind: "model"; label: string; provider: "groq" | "ollama" | "antigravity" | "sidecar_whisper"; getValue: (c: MndConfig) => string; setValue: (c: MndConfig, v: string) => void; };
+  | { kind: "model"; label: string; provider: "groq" | "ollama" | "antigravity" | "sidecar_whisper"; getValue: (c: MndConfig) => string; setValue: (c: MndConfig, v: string) => void; }
+  | { kind: "antigravity"; label: string; }
+  | { kind: "action"; label: string; render: (c: MndConfig) => string[]; onAction?: (action: string) => void; };
 
 const SECTION_FIELDS: Record<SectionName, ConfigField[]> = {
   profile: [
@@ -36,8 +39,8 @@ const SECTION_FIELDS: Record<SectionName, ConfigField[]> = {
   ],
   connections: [
     { kind: "text", label: "Groq API Key Ref", getValue: c => c.connections.groq_api_key_ref, setValue: (c, v) => c.connections.groq_api_key_ref = v },
-    { kind: "text", label: "Antigravity CLI Path", getValue: c => c.connections.antigravity_cli_path, setValue: (c, v) => c.connections.antigravity_cli_path = v },
     { kind: "text", label: "Ollama Host", getValue: c => c.connections.ollama_host, setValue: (c, v) => c.connections.ollama_host = v },
+    { kind: "antigravity", label: "Antigravity Status" },
   ],
   models: [
     { kind: "model", provider: "groq", label: "Hybrid Text Model", getValue: c => c.models.hybrid.text.model ?? "", setValue: (c, v) => c.models.hybrid.text.model = v },
@@ -72,16 +75,19 @@ export function ConfigScreen(): React.ReactElement {
   const [customModelMode, setCustomModelMode] = useState<boolean>(false);
   
   const [cfg, setCfg] = useState<MndConfig | null>(null);
+  const [agvStatus, setAgvStatus] = useState<AntigravityDiscoveryResult | null>(null);
+  const [agvScanning, setAgvScanning] = useState(false);
   const { exit } = useApp();
 
   useEffect(() => {
     loadConfig().then(setCfg).catch(console.error);
+    getVerifiedAntigravity().then(setAgvStatus).catch(console.error);
   }, []);
 
   const saveFieldValue = async (val: any) => {
     if (!cfg) return;
     const field = SECTION_FIELDS[focusSection][focusFieldIdx];
-    if (!field) return;
+    if (!field || field.kind === "antigravity" || field.kind === "action") return;
     const newCfg = structuredClone(cfg);
     field.setValue(newCfg, val as never);
     await saveConfig(newCfg);
@@ -201,8 +207,31 @@ export function ConfigScreen(): React.ReactElement {
       setFocusFieldIdx(i => Math.max(0, i - 1));
     } else if (key.downArrow) {
       setFocusFieldIdx(i => Math.min(fields.length - 1, i + 1));
-    } else if (key.return) {
-      setEditBuffer(field.getValue(cfg));
+    } else     if (field.kind === "antigravity") {
+      if (!agvScanning) {
+        if (input === "r" || input === "R") {
+          setAgvScanning(true);
+          discoverAntigravityCli().then(res => {
+             setAgvStatus(res);
+             setAgvScanning(false);
+          }).catch(() => setAgvScanning(false));
+        } else if (input === "d" || input === "D") {
+          // Diagnostics
+          setOptions(agvStatus?.checkedCandidates.map(c => ({ value: c.path, label: `${c.path} [${c.source}] - ${c.result}` })) || [{ value: "", label: "No candidates checked" }]);
+          setOptionIdx(0);
+          setEditing(true);
+        } else if (key.return) {
+          if (agvStatus?.status === "ready" && agvStatus.installation?.models?.length) {
+             setOptions(agvStatus.installation.models.map(m => ({ value: m.id, label: m.id })));
+             setOptionIdx(0);
+             setEditing(true);
+          }
+        }
+      }
+      return;
+    }
+    if (key.return) {
+      setEditBuffer((field.kind !== "antigravity" && field.kind !== "action") ? field.getValue(cfg) : "");
       setEditError("");
       
       if (field.kind === "select") {
@@ -278,7 +307,7 @@ export function ConfigScreen(): React.ReactElement {
           const isFocused = section === focusSection;
           const fields = SECTION_FIELDS[section];
           const lines = fields.map((f, i) => {
-            const val = f.getValue(cfg);
+            const val = (f.kind !== "antigravity" && f.kind !== "action") ? f.getValue(cfg) : "";
             const isCurrent = isFocused && i === focusFieldIdx;
             const prefix = isCurrent ? (editing ? "✏ " : "▸ ") : "  ";
             
@@ -291,6 +320,24 @@ export function ConfigScreen(): React.ReactElement {
                 // Wait, renderFocusableBox takes `string[]`. If we put newlines in a string, renderFocusableBox might break its border drawing if it counts lines by array length.
                 // It's better to push multiple lines into the array.
                 return `${prefix}${f.label}:`;
+              } else if (f.kind === "antigravity") {
+                if (agvScanning) return `${prefix}Antigravity: detecting...`;
+                if (!agvStatus) return `${prefix}Antigravity: Loading...`;
+                let st = agvStatus.status;
+                if (st === "ready") return [
+                  `${prefix}Antigravity: ✓ Ready`,
+                  `      Version: ${agvStatus.installation?.version || "unknown"}`,
+                  `      Location: ${agvStatus.installation?.executablePath}`,
+                  `      [Enter] Select model  [R] Rescan  [D] Diagnostics`
+                ].join("\n");
+                if (st === "unsupported") return [
+                  `${prefix}Antigravity: ✗ Application found but CLI protocol unavailable`,
+                  `      [R] Rescan  [D] Diagnostics`
+                ].join("\n");
+                return [
+                  `${prefix}Antigravity: ✗ Not found`,
+                  `      [R] Rescan  [D] Diagnostics`
+                ].join("\n");
               } else if (f.kind === "select" || f.kind === "boolean") {
                 const optStr = options.map((o, idx) => idx === optionIdx ? chalk.bgHex(theme.accent).black(` ${o.label} `) : ` ${o.label} `).join(" | ");
                 return `${prefix}${f.label}: ${optStr}`;
@@ -298,6 +345,25 @@ export function ConfigScreen(): React.ReactElement {
                 return `${prefix}${f.label}: ${editBuffer}█ ${editError ? chalk.red(`(${editError})`) : ""}`;
               }
             } else {
+              if (f.kind === "antigravity") {
+                if (agvScanning) return `${prefix}Antigravity: detecting...`;
+                if (!agvStatus) return `${prefix}Antigravity: Loading...`;
+                let st = agvStatus.status;
+                if (st === "ready") return [
+                  `${prefix}Antigravity: ✓ Ready`,
+                  `      Version: ${agvStatus.installation?.version || "unknown"}`,
+                  `      Location: ${agvStatus.installation?.executablePath}`,
+                  `      [Enter] Select model  [R] Rescan  [D] Diagnostics`
+                ].join("\n");
+                if (st === "unsupported") return [
+                  `${prefix}Antigravity: ✗ Application found but CLI protocol unavailable`,
+                  `      [R] Rescan  [D] Diagnostics`
+                ].join("\n");
+                return [
+                  `${prefix}Antigravity: ✗ Not found`,
+                  `      [R] Rescan  [D] Diagnostics`
+                ].join("\n");
+              }
               return `${prefix}${f.label}: ${val}`;
             }
           });

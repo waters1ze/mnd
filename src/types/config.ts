@@ -22,8 +22,21 @@ export interface MndConfig {
 
   connections: {
     groq_api_key_ref: string;
-    antigravity_cli_path: string;
+    antigravity?: {
+      discovery_mode: "auto" | "manual";
+      cached_executable_path: string | null;
+      cached_version: string | null;
+      last_verified_at: string | null;
+    };
+    // Deprecated in v2: antigravity_cli_path?: string;
     ollama_host: string;
+  };
+
+  obsidian?: {
+    initialized: boolean;
+    vault_id: string | null;
+    home_note: string;
+    last_verified_at: string | null;
   };
 
   models: {

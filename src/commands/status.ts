@@ -43,7 +43,7 @@ export const handleStatus: CommandHandler = async () => {
       "Antigravity CLI",
       cell(agStatus.alive, agStatus.state),
       String(agStatus.queueLength),
-      cfg.connections.antigravity_cli_path,
+      cfg.connections.antigravity?.cached_executable_path,
     ],
     [
       "Python Sidecar",

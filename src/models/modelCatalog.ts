@@ -53,10 +53,10 @@ export async function refreshCatalog(): Promise<DiscoveredModel[]> {
       id: "antigravity",
       provider: "antigravity",
       capabilities: ["image_generation"],
-      availability: cfg.connections.antigravity_cli_path ? "available" : "not_installed",
+      availability: cfg.connections.antigravity?.cached_executable_path ? "available" : "not_installed",
       displayName: "Antigravity CLI",
       local: true,
-      installed: !!cfg.connections.antigravity_cli_path,
+      installed: !!cfg.connections.antigravity?.cached_executable_path,
       source: "live",
       discoveredAt: new Date().toISOString()
     };

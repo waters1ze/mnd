@@ -90,7 +90,7 @@ export async function startRepl(): Promise<void> {
       // 1. Build and update context
       const { resolveVaultPath, loadConfig } = await import("../core/config.js");
       const { isProjectFolder, analyzeProjectFlags } = await import("../core/projectPaths.js");
-      const { discoverAntigravityCli } = await import("../integrations/antigravityDiscovery.js");
+      const { getVerifiedAntigravity } = await import("../integrations/antigravityDiscovery.js");
       const { updateCommandContext, COMMAND_REGISTRY, parseInput } = await import("./router.js");
       
       const cfg = await loadConfig();
@@ -112,7 +112,7 @@ export async function startRepl(): Promise<void> {
         }
       }
 
-      const agReady = await discoverAntigravityCli(cfg.connections.antigravity_cli_path) ? "ready" : "missing";
+      const agReady = (await getVerifiedAntigravity()).status === "ready" ? "ready" : "missing";
 
       updateCommandContext({
         project: projectCtx,

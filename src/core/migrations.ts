@@ -9,7 +9,7 @@ import { getAppDataDir } from "./paths.js";
 import { getProjectPaths } from "./projectPaths.js";
 import type { MndConfig } from "../types/config.js";
 
-export const LATEST_CONFIG_VERSION = 1;
+export const LATEST_CONFIG_VERSION = 2;
 export const LATEST_VAULT_VERSION = 1;
 
 export async function runConfigMigrations(): Promise<void> {
@@ -42,6 +42,36 @@ export async function runConfigMigrations(): Promise<void> {
   if (currentVersion < 1) {
     migrated.version = 1;
     // v0 -> v1 changes if any
+  }
+  if (currentVersion < 2) {
+    migrated.version = 2;
+    // Migrate Antigravity path
+    if (migrated.connections?.antigravity_cli_path) {
+      migrated.connections.antigravity = {
+        discovery_mode: "auto",
+        cached_executable_path: migrated.connections.antigravity_cli_path,
+        cached_version: null,
+        last_verified_at: null,
+      };
+      delete migrated.connections.antigravity_cli_path;
+    } else if (migrated.connections && !migrated.connections.antigravity) {
+      migrated.connections.antigravity = {
+        discovery_mode: "auto",
+        cached_executable_path: null,
+        cached_version: null,
+        last_verified_at: null,
+      };
+    }
+
+    // Initialize Obsidian section
+    if (!migrated.obsidian) {
+      migrated.obsidian = {
+        initialized: false,
+        vault_id: null,
+        home_note: "Home.md",
+        last_verified_at: null,
+      };
+    }
   }
 
   await atomicWriteFile(configPath, YAML.stringify(migrated));

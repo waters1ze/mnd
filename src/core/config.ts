@@ -14,17 +14,27 @@ const CONFIG_DIR = getAppDataDir();
 const CONFIG_PATH = join(CONFIG_DIR, "config.yaml");
 
 const DEFAULT_CONFIG: MndConfig = {
-  version: 1,
+  version: 2,
   profile: "hybrid",
   vault_path: join(homedir(), "Vaults", "mnd"),
   inbox_path: join(homedir(), "Desktop", "mnd-inbox"),
 
   connections: {
     groq_api_key_ref: "groq_api_key",
-    antigravity_cli_path: process.platform === "win32"
-      ? "antigravity"
-      : "/usr/local/bin/antigravity",
+    antigravity: {
+      discovery_mode: "auto",
+      cached_executable_path: null,
+      cached_version: null,
+      last_verified_at: null,
+    },
     ollama_host: "http://localhost:11434",
+  },
+
+  obsidian: {
+    initialized: false,
+    vault_id: null,
+    home_note: "Home.md",
+    last_verified_at: null,
   },
 
   models: {

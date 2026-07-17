@@ -1,38 +1,48 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { loadConfig, updateConfigField } from "../core/config.js";
 import chalk from "chalk";
+import { LATEST_CONFIG_VERSION } from "../core/migrations.js";
+import { platform } from "node:os";
 
-/**
- * Executes a candidate CLI path with `--version` and a timeout.
- * Returns true if it outputs something resembling an antigravity version or successfully runs.
- */
-export function verifyAntigravityCli(candidate: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    try {
-      const proc = execFile(candidate, ["--version"], { timeout: 2000 }, (error, stdout) => {
-        if (error) {
-          resolve(false);
-          return;
-        }
-        const out = stdout.toLowerCase();
-        if (out.trim().length > 0) {
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      });
-      proc.on("error", () => resolve(false));
-    } catch {
-      resolve(false);
-    }
-  });
+export interface AntigravityInstallation {
+  executablePath: string;
+  version?: string;
+  installRoot?: string;
+  source:
+    | "cached"
+    | "environment"
+    | "path"
+    | "registry"
+    | "common_location"
+    | "package_manager"
+    | "manual";
+  capabilities: string[];
+  verifiedAt: string;
+  models: { id: string; capabilities: string[] }[];
 }
 
+export interface AntigravityDiscoveryResult {
+  status: "ready" | "not_found" | "invalid" | "unsupported";
+  installation?: AntigravityInstallation;
+  checkedCandidates: Array<{
+    path: string;
+    source: string;
+    result: string;
+  }>;
+}
+
+let cachedDiscoveryResult: AntigravityDiscoveryResult | null = null;
+
+export function invalidateAntigravityCache() {
+  cachedDiscoveryResult = null;
+}
+
+/** Resolves a command in PATH */
 function resolveCommand(cmd: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const finder = process.platform === "win32" ? "where" : "which";
+    const finder = platform() === "win32" ? "where" : "which";
     execFile(finder, [cmd], (err, stdout) => {
       if (err || !stdout.trim()) {
         resolve(null);
@@ -44,83 +54,267 @@ function resolveCommand(cmd: string): Promise<string | null> {
   });
 }
 
-/**
- * Discovers the Antigravity CLI executable path.
- * Searches in config, ENV, PATH, and common installation locations.
- */
-export async function discoverAntigravityCli(configPath?: string): Promise<string | null> {
-  const candidates: string[] = [];
+function normalizePath(p: string): string {
+  return platform() === "win32" ? p.toLowerCase() : p;
+}
 
-  if (configPath) {
-    if (configPath.includes("/") || configPath.includes("\\")) {
-      if (existsSync(configPath)) candidates.push(configPath);
-    } else {
-      const resolved = await resolveCommand(configPath);
-      if (resolved) candidates.push(resolved);
+async function getWindowsRegistryPaths(): Promise<string[]> {
+  if (platform() !== "win32") return [];
+  const paths: string[] = [];
+  try {
+    // Attempt to query App Paths registry
+    const appPathsCmd = ["QUERY", "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\antigravity.exe", "/ve"];
+    const out = await new Promise<string>((resolve) => {
+      execFile("reg.exe", appPathsCmd, { timeout: 2000 }, (err, stdout) => resolve(stdout || ""));
+    });
+    const match = out.match(/REG_SZ\s+(.+)$/im);
+    if (match && match[1]) {
+      paths.push(match[1].trim());
     }
+  } catch {
+    // ignore
+  }
+  return paths;
+}
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function verifyCandidate(candidate: string): Promise<{ ok: boolean; version?: string; capabilities: string[]; models: any[]; reason?: string }> {
+  // 1. Identity Check
+  let version = "";
+  let help = "";
+  try {
+    version = await new Promise<string>((resolve, reject) => {
+      execFile(candidate, ["--version"], { timeout: 2000 }, (err, stdout) => {
+        if (err) return reject(err);
+        resolve(stdout.trim());
+      });
+    });
+    help = await new Promise<string>((resolve, reject) => {
+      execFile(candidate, ["--help"], { timeout: 2000 }, (err, stdout) => {
+        if (err) return reject(err);
+        resolve(stdout.trim());
+      });
+    });
+  } catch (err: any) {
+    return { ok: false, capabilities: [], models: [], reason: "Execution failed or timed out" };
+  }
+
+  // Must identify as Antigravity
+  if (!version.toLowerCase().includes("antigravity") && !help.toLowerCase().includes("antigravity")) {
+    return { ok: false, capabilities: [], models: [], reason: "Executable is not Antigravity" };
+  }
+
+  // Check for JSON capability
+  if (!help.includes("--json-io")) {
+    return { ok: false, capabilities: [], models: [], reason: "JSON protocol unsupported" };
+  }
+
+  // 2. JSON Handshake Check
+  return new Promise(async (resolve) => {
+    const proc = spawn(candidate, ["--non-interactive", "--json-io"]);
+    let outBuf = "";
+    let isReady = false;
+    let answered = false;
+
+    const timeout = setTimeout(() => {
+      if (!answered) {
+        answered = true;
+        proc.kill();
+        resolve({ ok: false, capabilities: [], models: [], reason: "JSON handshake timed out" });
+      }
+    }, 5000);
+
+    proc.stdout.on("data", (chunk) => {
+      outBuf += chunk.toString();
+      // Simple parsing: wait for ready message or valid JSON line
+      const lines = outBuf.split("\n");
+      outBuf = lines.pop() || "";
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.status === "ready" || msg.type === "ready") {
+            isReady = true;
+            proc.stdin.write(JSON.stringify({ action: "handshake" }) + "\n");
+          } else if (msg.type === "handshake_response") {
+            // Success
+            if (!answered) {
+              answered = true;
+              clearTimeout(timeout);
+              proc.kill();
+              resolve({
+                ok: true,
+                version: version,
+                capabilities: msg.capabilities || ["image_generation"],
+                models: msg.models || []
+              });
+            }
+          }
+        } catch {
+          // ignore non-json lines
+        }
+      }
+    });
+
+    proc.on("error", () => {
+      if (!answered) {
+        answered = true;
+        clearTimeout(timeout);
+        proc.kill();
+        resolve({ ok: false, capabilities: [], models: [], reason: "Failed to spawn JSON protocol" });
+      }
+    });
+
+    proc.on("exit", () => {
+      if (!answered) {
+        answered = true;
+        clearTimeout(timeout);
+        resolve({ ok: false, capabilities: [], models: [], reason: "Process exited before handshake" });
+      }
+    });
+  });
+}
+
+export async function discoverAntigravityCli(): Promise<AntigravityDiscoveryResult> {
+  const cfg = await loadConfig();
+  const cached = cfg.connections.antigravity?.cached_executable_path;
+
+  const candidates: Array<{ path: string; source: string }> = [];
+
+  if (cached && existsSync(cached)) {
+    candidates.push({ path: cached, source: "cached" });
   }
 
   if (process.env["ANTIGRAVITY_CLI_PATH"]) {
-    candidates.push(process.env["ANTIGRAVITY_CLI_PATH"]);
+    candidates.push({ path: process.env["ANTIGRAVITY_CLI_PATH"], source: "environment" });
   }
 
   const pathResolved = await resolveCommand("antigravity");
-  if (pathResolved) candidates.push(pathResolved);
+  if (pathResolved) candidates.push({ path: pathResolved, source: "path" });
 
-  if (process.platform === "win32") {
+  const winRegPaths = await getWindowsRegistryPaths();
+  for (const p of winRegPaths) candidates.push({ path: p, source: "registry" });
+
+  if (platform() === "win32") {
     const localAppData = process.env["LOCALAPPDATA"];
     const appData = process.env["APPDATA"];
-    const userProfile = process.env["USERPROFILE"];
+    const programFiles = process.env["PROGRAMFILES"];
+    const programFiles86 = process.env["PROGRAMFILES(X86)"];
     
     if (localAppData) {
-      candidates.push(join(localAppData, "antigravity", "antigravity.exe"));
-      candidates.push(join(localAppData, "Programs", "antigravity", "antigravity.exe"));
+      candidates.push({ path: join(localAppData, "Programs", "Antigravity", "antigravity.exe"), source: "common_location" });
+      candidates.push({ path: join(localAppData, "Programs", "Antigravity", "resources", "app.asar.unpacked", "bin", "antigravity.exe"), source: "common_location" });
+      candidates.push({ path: join(localAppData, "Antigravity", "antigravity.exe"), source: "common_location" });
+    }
+    if (programFiles) {
+      candidates.push({ path: join(programFiles, "Antigravity", "antigravity.exe"), source: "common_location" });
+    }
+    if (programFiles86) {
+      candidates.push({ path: join(programFiles86, "Antigravity", "antigravity.exe"), source: "common_location" });
     }
     if (appData) {
-      candidates.push(join(appData, "npm", "antigravity.cmd"));
-      candidates.push(join(appData, "npm", "antigravity.exe"));
-    }
-    if (userProfile) {
-      candidates.push(join(userProfile, ".local", "bin", "antigravity.exe"));
+      candidates.push({ path: join(appData, "npm", "antigravity.cmd"), source: "package_manager" });
+      candidates.push({ path: join(appData, "npm", "antigravity.exe"), source: "package_manager" });
     }
   } else {
-    candidates.push("/usr/local/bin/antigravity");
-    candidates.push("/opt/homebrew/bin/antigravity");
-    candidates.push(join(process.env["HOME"] || "", ".local", "bin", "antigravity"));
+    candidates.push({ path: "/usr/local/bin/antigravity", source: "common_location" });
+    candidates.push({ path: "/opt/homebrew/bin/antigravity", source: "package_manager" });
   }
 
-  // Deduplicate and filter existing paths
-  const uniquePaths = Array.from(new Set(candidates)).filter((p) => existsSync(p));
-
-  // Verify
-  for (const p of uniquePaths) {
-    const ok = await verifyAntigravityCli(p);
-    if (ok) return p;
+  const uniquePaths = new Map<string, string>();
+  for (const c of candidates) {
+    if (existsSync(c.path)) {
+      const norm = normalizePath(c.path);
+      if (!uniquePaths.has(norm)) {
+        uniquePaths.set(norm, c.path);
+      }
+    }
   }
 
-  return null;
+  const checkedCandidates: any[] = [];
+  
+  for (const [_, p] of uniquePaths) {
+    const source = candidates.find(c => normalizePath(c.path) === normalizePath(p))?.source || "manual";
+    const res = await verifyCandidate(p);
+    checkedCandidates.push({ path: p, source, result: res.ok ? "verified" : res.reason });
+    
+    if (res.ok) {
+      const inst: AntigravityInstallation = {
+        executablePath: p,
+        ...(res.version ? { version: res.version } : {}),
+        source: source as any,
+        capabilities: res.capabilities,
+        models: res.models,
+        verifiedAt: new Date().toISOString()
+      };
+      
+      const result: AntigravityDiscoveryResult = {
+        status: "ready",
+        installation: inst,
+        checkedCandidates
+      };
+      
+      cachedDiscoveryResult = result;
+
+      // Update config cache
+      await updateConfigField(c => {
+        if (!c.connections.antigravity) {
+          c.connections.antigravity = { discovery_mode: "auto", cached_executable_path: null, cached_version: null, last_verified_at: null };
+        }
+        c.connections.antigravity.cached_executable_path = p;
+        c.connections.antigravity.cached_version = res.version || null;
+        c.connections.antigravity.last_verified_at = inst.verifiedAt;
+      });
+
+      return result;
+    } else if (res.reason === "JSON protocol unsupported") {
+      // Might be desktop app without CLI mode
+      checkedCandidates[checkedCandidates.length - 1].result = "unsupported_desktop_app";
+    }
+  }
+
+  const hasUnsupported = checkedCandidates.some(c => c.result === "unsupported_desktop_app");
+  
+  const result: AntigravityDiscoveryResult = {
+    status: hasUnsupported ? "unsupported" : "not_found",
+    checkedCandidates
+  };
+  cachedDiscoveryResult = result;
+  
+  // Clear config cache
+  await updateConfigField(c => {
+    if (c.connections.antigravity) {
+      c.connections.antigravity.cached_executable_path = null;
+      c.connections.antigravity.last_verified_at = null;
+    }
+  });
+
+  return result;
 }
 
-/**
- * Ensures the Antigravity CLI is available, discovering it if necessary,
- * saving the discovered path to config, and alerting the user if absent.
- */
+export async function getVerifiedAntigravity(forceRescan = false): Promise<AntigravityDiscoveryResult> {
+  if (!forceRescan && cachedDiscoveryResult && (cachedDiscoveryResult.status === "ready" || cachedDiscoveryResult.status === "unsupported" || cachedDiscoveryResult.status === "not_found")) {
+    return cachedDiscoveryResult;
+  }
+  return await discoverAntigravityCli();
+}
+
 export async function ensureAntigravityCli(): Promise<boolean> {
-  const cfg = await loadConfig();
-  const configuredPath = cfg.connections.antigravity_cli_path;
-  
-  const discovered = await discoverAntigravityCli(configuredPath);
-  
-  if (discovered) {
-    if (discovered !== configuredPath) {
-      await updateConfigField((c) => { c.connections.antigravity_cli_path = discovered; });
-      console.log(chalk.green(`✓ Antigravity found: ${discovered}`));
-    }
+  const result = await getVerifiedAntigravity();
+  if (result.status === "ready") {
+    console.log(chalk.green(`✓ Antigravity found: ${result.installation?.executablePath}`));
     return true;
   }
   
-  console.log(chalk.red(`✗ Antigravity CLI not found.`));
-  console.log(chalk.gray(`Searched PATH, ENV, config, and common install locations.`));
-  console.log(chalk.gray(`'sort' and 'thumbnail' require it. You can install it manually and set connections.antigravity_cli_path in config.`));
+  if (result.status === "unsupported") {
+    console.log(chalk.red(`✗ Antigravity application found, but CLI protocol unavailable.`));
+  } else {
+    console.log(chalk.red(`✗ Antigravity CLI not found.`));
+  }
+  console.log(chalk.gray(`'sort' and 'thumbnail' require it. You can install it manually and set connections.antigravity.cached_executable_path in config (Advanced).`));
   return false;
 }

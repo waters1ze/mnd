@@ -25,7 +25,11 @@ async function getProcess(): Promise<PersistentProcess> {
   if (_process) return _process;
 
   const cfg = await loadConfig();
-  const cliPath = cfg.connections.antigravity_cli_path;
+  const cliPath = cfg.connections.antigravity?.cached_executable_path;
+
+  if (!cliPath) {
+    throw new Error("Antigravity CLI path is not configured.");
+  }
 
   _process = new PersistentProcess({
     name: "Antigravity",

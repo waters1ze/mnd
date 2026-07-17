@@ -1,5 +1,9 @@
 import chalk from "chalk";
 import { loadConfig } from "../core/config.js";
+import { getVerifiedAntigravity } from "../integrations/antigravityDiscovery.js";
+import { getRegisteredVaultId } from "../integrations/obsidian.js";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { session } from "../repl/loop.js";
 
 interface DoctorArgs {
@@ -22,6 +26,7 @@ export async function handleDoctor(rawArgs: string[], rawInput: string): Promise
   const results = {
     runtime: await checkRuntime(args),
     config: await checkConfig(args),
+    integrations: await checkIntegrations(args),
     sync: await checkSync(args),
     media: await checkMedia(args),
     project: session.currentProjectSlug ? await checkProject(args) : null,
@@ -35,7 +40,8 @@ export async function handleDoctor(rawArgs: string[], rawInput: string): Promise
   // Text report
   console.log(chalk.bold("\n🩺 MND Doctor Report"));
   printSection("Runtime & OS", results.runtime);
-  printSection("Config & Vault", results.config);
+  printSection("Config", results.config);
+  printSection("Integrations & Vault", results.integrations);
   printSection("Sync & Cloud", results.sync);
   printSection("Media Tools", results.media);
   
@@ -127,4 +133,47 @@ function printSection(title: string, checks: any[]) {
                  chalk.red("✗");
     console.log(`  ${icon} ${check.name.padEnd(15)} ${chalk.gray(check.detail)}`);
   }
+}
+
+async function checkIntegrations(args: DoctorArgs) {
+  const cfg = await loadConfig();
+  const checks = [];
+
+  // Antigravity
+  const agv = await getVerifiedAntigravity(true);
+  if (agv.status === "ready") {
+    checks.push({ name: "Antigravity", status: "PASS", detail: `Ready (v${agv.installation?.version})` });
+    checks.push({ name: "AG Protocol", status: "PASS", detail: "JSON Handshake Verified" });
+    if (!agv.installation?.models?.length) {
+       checks.push({ name: "AG Models", status: "WARN", detail: "No models reported by CLI" });
+    } else {
+       checks.push({ name: "AG Models", status: "PASS", detail: `${agv.installation.models.length} capabilities` });
+    }
+  } else if (agv.status === "unsupported") {
+    checks.push({ name: "Antigravity", status: "WARN", detail: "Desktop app found without CLI protocol" });
+  } else {
+    checks.push({ name: "Antigravity", status: "WARN", detail: "Not found or missing capabilities" });
+  }
+
+  // Obsidian
+  const vp = cfg.vault_path;
+  if (!vp || !existsSync(vp)) {
+    checks.push({ name: "Obsidian Vault", status: "FAIL", detail: "Path missing or deleted" });
+  } else {
+    checks.push({ name: "Obsidian Vault", status: "PASS", detail: "Path exists" });
+    if (!existsSync(join(vp, ".obsidian"))) {
+      checks.push({ name: "Vault Structure", status: "FAIL", detail: "Missing .obsidian folder" });
+    } else {
+      checks.push({ name: "Vault Structure", status: "PASS", detail: "Valid" });
+    }
+
+    const regId = await getRegisteredVaultId(vp);
+    if (regId) {
+       checks.push({ name: "Registration", status: "PASS", detail: `Registered (${regId})` });
+    } else {
+       checks.push({ name: "Registration", status: "FAIL", detail: "Not registered in obsidian.json" });
+    }
+  }
+
+  return checks;
 }

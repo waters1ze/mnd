@@ -77,7 +77,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "rules review", slash: "/rules review", icon: "☰", description: "Review global rules", acceptsArgs: false },
   { name: "status", slash: "/status", icon: "●", description: "Show current project/profile status", acceptsArgs: false },
   { name: "config", slash: "/config", icon: "⚙", description: "Open the settings screen", acceptsArgs: false }, // not sensitive
-  { name: "obsidian", slash: "/obsidian", icon: "◆", description: "Open the vault in Obsidian", acceptsArgs: false },
+  { name: "obsidian", slash: "/obsidian", icon: "◆", description: "Open the vault in Obsidian", acceptsArgs: true, aliases: ["obidian"] },
   { name: "backup", slash: "/backup", icon: "💾", description: "Backup config or project", acceptsArgs: true, sensitive: true },
   { name: "restore", slash: "/restore", icon: "⏪", description: "Restore config or project", acceptsArgs: true, sensitive: true },
   { name: "logs", slash: "/logs", icon: "🖹", description: "View system or project logs", acceptsArgs: true },
@@ -93,7 +93,8 @@ const MULTI_WORD_COMMANDS = [
   "export validate", "export reveal", "export retry",
   "sync setup", "sync status", "sync now", "sync push", "sync pull", 
   "sync conflicts", "sync resolve", "sync pause", "sync resume", "sync disconnect",
-  "update check", "update status", "update install", "update rollback"
+  "update check", "update status", "update install", "update rollback",
+  "obsidian setup", "obsidian repair", "obsidian reset", "obsidian status"
 ];
 
 let customRegistry: CommandEntry[] = [];
