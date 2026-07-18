@@ -124,6 +124,33 @@ export const handleAnalyze: CommandHandler = async (args, rawInput) => {
     if (!videoFile) return;
 
     const videoPath = join(paths.rawDir, videoFile);
+    const relVideoPath = join("raw", videoFile);
+
+    if (!state.sourceManifest) {
+      state.sourceManifest = {};
+    }
+
+    if (!state.sourceManifest[relVideoPath]) {
+      const { createReadStream } = await import("node:fs");
+      const { stat } = await import("node:fs/promises");
+      const hash = crypto.createHash("sha256");
+      const fstat = await stat(videoPath);
+      
+      await new Promise<void>((resolve, reject) => {
+        const stream = createReadStream(videoPath);
+        stream.on("data", (chunk) => hash.update(chunk));
+        stream.on("end", () => {
+          state.sourceManifest[relVideoPath] = {
+             hash: hash.digest("hex"),
+             size: fstat.size,
+             mtime: fstat.mtime.toISOString()
+          };
+          resolve();
+        });
+        stream.on("error", reject);
+      });
+      await saveProjectState(vaultPath, state);
+    }
 
     // Cost estimate
     const VIDEO_THRESHOLD_SEC = 600;

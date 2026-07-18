@@ -36,42 +36,56 @@ describe("buildEditPlan validations", () => {
     jest.clearAllMocks();
   });
 
-  it("throws error for negative duration cuts", async () => {
-    (getMediaDuration as jest.Mock).mockResolvedValue(100);
+  async function testValidation(cuts: any[], overlays: any[], errorMessage: RegExp | string, duration = 100) {
+    (getMediaDuration as jest.Mock).mockResolvedValue(duration);
     (groqChatWithFallback as jest.Mock).mockResolvedValue({
       result: JSON.stringify({
-        cuts: [{ id: "1", startSec: 10, endSec: 5, reason: "manual" }],
+        cuts,
+        overlays,
+        audioTrack: { musicAssetId: null, syncToBeat: false }
+      })
+    });
+    await expect(buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault"))
+      .rejects.toThrow(errorMessage);
+  }
+
+  it("throws error for negative start", () => testValidation([{ id: "1", startSec: -1, endSec: 5, reason: "manual" }], [], /negative duration or start time/));
+  it("throws error for negative end", () => testValidation([{ id: "1", startSec: 1, endSec: -5, reason: "manual" }], [], /negative duration or start time/));
+  it("throws error for zero duration", () => testValidation([{ id: "1", startSec: 5, endSec: 5, reason: "manual" }], [], /zero or reversed duration/));
+  it("throws error for reversed range", () => testValidation([{ id: "1", startSec: 10, endSec: 5, reason: "manual" }], [], /zero or reversed duration/));
+  it("throws error for NaN", () => testValidation([{ id: "1", startSec: NaN, endSec: 5, reason: "manual" }], [], /not a finite number/));
+  it("throws error for Infinity", () => testValidation([{ id: "1", startSec: 0, endSec: Infinity, reason: "manual" }], [], /not a finite number/));
+  it("throws error for string instead of number", () => testValidation([{ id: "1", startSec: "0", endSec: 5, reason: "manual" }], [], /not a finite number/));
+  it("throws error for end beyond source duration", () => testValidation([{ id: "1", startSec: 5, endSec: 15, reason: "manual" }], [], /ends beyond source duration/, 10));
+  
+  it("throws error for missing ffprobe duration (null)", async () => {
+    (getMediaDuration as jest.Mock).mockResolvedValue(null);
+    (groqChatWithFallback as jest.Mock).mockResolvedValue({
+      result: JSON.stringify({
+        cuts: [{ id: "1", startSec: 5, endSec: 10, reason: "manual" }],
         overlays: [],
         audioTrack: { musicAssetId: null, syncToBeat: false }
       })
     });
-
-    await expect(buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault")).rejects.toThrow(/zero or negative duration/);
+    await expect(buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault"))
+      .rejects.toThrow(/source duration cannot be determined/);
   });
 
-  it("throws error for cuts ending beyond source duration", async () => {
+  it("accepts valid boundary exactly equal to duration", async () => {
     (getMediaDuration as jest.Mock).mockResolvedValue(10);
     (groqChatWithFallback as jest.Mock).mockResolvedValue({
       result: JSON.stringify({
-        cuts: [{ id: "1", startSec: 5, endSec: 15, reason: "manual" }],
+        cuts: [{ id: "1", startSec: 0, endSec: 10, reason: "manual" }],
         overlays: [],
         audioTrack: { musicAssetId: null, syncToBeat: false }
       })
     });
-
-    await expect(buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault")).rejects.toThrow(/ends beyond source duration/);
+    const result = await buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault");
+    expect(result.cuts[0].endSec).toBe(10);
   });
 
-  it("throws error for negative duration overlays", async () => {
-    (getMediaDuration as jest.Mock).mockResolvedValue(100);
-    (groqChatWithFallback as jest.Mock).mockResolvedValue({
-      result: JSON.stringify({
-        cuts: [],
-        overlays: [{ id: "2", type: "text", startSec: 10, endSec: 10, text: "hi" }],
-        audioTrack: { musicAssetId: null, syncToBeat: false }
-      })
-    });
-
-    await expect(buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault")).rejects.toThrow(/zero or negative duration/);
-  });
+  it("throws error for overlays negative start", () => testValidation([], [{ id: "2", type: "text", startSec: -10, endSec: 10, text: "hi" }], /negative duration or start time/));
+  it("throws error for overlays zero duration", () => testValidation([], [{ id: "2", type: "text", startSec: 10, endSec: 10, text: "hi" }], /zero or reversed duration/));
+  
+  it("throws error for unknown asset type broll missing assetId", () => testValidation([], [{ id: "2", type: "broll", startSec: 1, endSec: 5 }], /referenced source\/asset ID is unknown/));
 });

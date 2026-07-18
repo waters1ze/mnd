@@ -89,7 +89,7 @@ export interface ProjectState {
   version: number;
   projectSlug: string;
   runId: string | null;
-  sourceManifest: Record<string, string>; // e.g. path -> fingerprint
+  sourceManifest: Record<string, { hash: string; size: number; mtime: string } | string>; // legacy is string, new is object
   activeProfile: string;
   createdAt: string;
   updatedAt: string;

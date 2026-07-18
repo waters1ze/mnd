@@ -19,10 +19,43 @@ jest.mock("../src/integrations/obsidian.js", () => ({
 jest.mock("node:fs", () => ({
   existsSync: jest.fn().mockReturnValue(false)
 }));
+jest.mock("../src/core/pythonSidecarClient.js", () => ({
+  sidecarPing: jest.fn().mockResolvedValue(false)
+}));
+jest.mock("../src/core/secrets.js", () => ({
+  secretsHasKey: jest.fn().mockReturnValue(false)
+}));
 
 describe("doctorIntegrations", () => {
-  it("runs without throwing", async () => {
+  let logSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  it("produces valid json without unrelated stdout and accurately reflects states", async () => {
     await handleDoctor(["--json"], "doctor --json");
-    expect(true).toBe(true);
+    
+    // Exactly one call to console.log is expected with JSON
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    
+    const output = logSpy.mock.calls[0][0];
+    const data = JSON.parse(output);
+    
+    // Assert on some statuses based on the mocks above
+    expect(data.runtime.find((r: any) => r.name === "Node.js").status).toBe("PASS");
+    
+    // Obsidian Existence should be FAIL because existsSync is false
+    expect(data.integrations.find((r: any) => r.name === "Obsidian Vault Existence").status).toBe("FAIL");
+    
+    // Antigravity should be FAIL since we mock not_found
+    expect(data.integrations.find((r: any) => r.name === "Antigravity Identity").status).toBe("FAIL");
+    
+    // Python Sidecar FAIL
+    expect(data.integrations.find((r: any) => r.name === "Python Sidecar").status).toBe("FAIL");
   });
 });

@@ -135,25 +135,64 @@ export async function buildEditPlanStep(
   
   // Validate cuts
   for (const cut of editPlan.cuts) {
-    if (cut.startSec < 0) cut.startSec = 0;
-    if (cut.endSec < 0) cut.endSec = 0;
-    if (cut.startSec >= cut.endSec) {
-      throw new Error(`Invalid cut ${cut.id}: zero or negative duration (${cut.startSec} to ${cut.endSec})`);
+    if (!Number.isFinite(cut.startSec) || !Number.isFinite(cut.endSec)) {
+      throw new Error(`Invalid cut ${cut.id}: start or end is not a finite number`);
     }
-    if (duration !== null && cut.endSec > duration) {
+    if (cut.startSec < 0 || cut.endSec < 0) {
+      throw new Error(`Invalid cut ${cut.id}: negative duration or start time`);
+    }
+    if (cut.startSec >= cut.endSec) {
+      throw new Error(`Invalid cut ${cut.id}: zero or reversed duration (${cut.startSec} to ${cut.endSec})`);
+    }
+    if (duration === null) {
+      throw new Error(`Invalid cut ${cut.id}: source duration cannot be determined for bounds verification`);
+    }
+    if (cut.endSec > duration) {
       throw new Error(`Invalid cut ${cut.id}: ends beyond source duration (${cut.endSec} > ${duration})`);
     }
   }
 
   // Validate overlays
+  const validTypes = ["broll", "subtitle", "text", "zoom"];
   for (const overlay of editPlan.overlays) {
-    if (overlay.startSec < 0) overlay.startSec = 0;
-    if (overlay.endSec < 0) overlay.endSec = 0;
-    if (overlay.startSec >= overlay.endSec) {
-      throw new Error(`Invalid overlay ${overlay.id}: zero or negative duration (${overlay.startSec} to ${overlay.endSec})`);
+    if (!Number.isFinite(overlay.startSec) || !Number.isFinite(overlay.endSec)) {
+      throw new Error(`Invalid overlay ${overlay.id}: start or end is not a finite number`);
     }
-    if (duration !== null && overlay.endSec > duration) {
+    if (overlay.startSec < 0 || overlay.endSec < 0) {
+      throw new Error(`Invalid overlay ${overlay.id}: negative duration or start time`);
+    }
+    if (overlay.startSec >= overlay.endSec) {
+      throw new Error(`Invalid overlay ${overlay.id}: zero or reversed duration (${overlay.startSec} to ${overlay.endSec})`);
+    }
+    if (duration === null) {
+      throw new Error(`Invalid overlay ${overlay.id}: source duration cannot be determined for bounds verification`);
+    }
+    if (overlay.endSec > duration) {
       throw new Error(`Invalid overlay ${overlay.id}: ends beyond source duration (${overlay.endSec} > ${duration})`);
+    }
+    if (!validTypes.includes(overlay.type)) {
+      throw new Error(`Invalid overlay ${overlay.id}: unsupported type ${overlay.type}`);
+    }
+    if (overlay.type === "broll" && !overlay.assetId) {
+      throw new Error(`Invalid overlay ${overlay.id}: referenced source/asset ID is unknown`);
+    }
+  }
+
+  // Validate overlap policy for overlays
+  const overlaysByType = new Map<string, typeof editPlan.overlays>();
+  for (const overlay of editPlan.overlays) {
+    const arr = overlaysByType.get(overlay.type) || [];
+    arr.push(overlay);
+    overlaysByType.set(overlay.type, arr);
+  }
+  for (const [type, arr] of overlaysByType.entries()) {
+    arr.sort((a, b) => a.startSec - b.startSec);
+    for (let i = 0; i < arr.length - 1; i++) {
+      const current = arr[i];
+      const next = arr[i+1];
+      if (current && next && current.endSec > next.startSec) {
+        throw new Error(`Invalid overlay overlap for type ${type}: ${current.id} overlaps with ${next.id}`);
+      }
     }
   }
 
