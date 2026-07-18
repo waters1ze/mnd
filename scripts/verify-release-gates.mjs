@@ -53,7 +53,7 @@ if (!lint.success) {
 }
 
 // 5. npm test
-const test = run('npm test -- --runInBand');
+const test = run('npm test -- --runInBand --verbose');
 if (!test.success) {
   console.error("Tests failed!", test.output);
   process.exit(1);
@@ -73,44 +73,56 @@ if (!cli.success || !cli.output.includes("Usage:")) {
   process.exit(1);
 }
 
-// Check assertions
-// Since we don't have a reliable way to get the exact Jest execution tree with assertions,
-// we will grep the source for the assertion IDs to ensure they exist in the test files.
-// For real evidence, we check if there's a manual claim file, but since the user said this script
-// must check them, we'll mark them based on presence in a manual_evidence.json if we had one.
-// Let's keep it simple for now, we'll verify the assertion IDs are in the test source code.
-
-const grepRes = run('git grep "RELEASE_ASSERTION:"');
-const foundAssertions = grepRes.output || "";
+// Check assertions by parsing Jest verbose output
+const foundAssertions = [];
+const regex = /(?:√|✓|\bPASS\b)\s*RELEASE_ASSERTION:\s*(R\d{2}[^\s\(]+)/g;
+let match;
+while ((match = regex.exec(test.output)) !== null) {
+  foundAssertions.push(match[1]);
+}
+// Fallback check against source is removed to prevent comments passing as assertions.
 
 let allGatesPass = true;
 for (const gate of spec.gates) {
   let pass = true;
-  let reason = "Verified";
+  let missing = [];
   
   for (const assertion of gate.requiredAssertionIds) {
-    if (!foundAssertions.includes(assertion)) {
+    const id = assertion.replace("RELEASE_ASSERTION: ", "");
+    if (!foundAssertions.includes(id)) {
       pass = false;
-      reason = `Missing assertion: ${assertion}`;
-      console.error(`Gate ${gate.id} failed: ${reason}`);
+      missing.push(assertion);
     }
+  }
+
+  let status = "PASS";
+  let reason = "Verified";
+
+  if (!pass) {
+    status = "FAIL";
+    reason = `Missing assertions: ${missing.join(", ")}`;
+    console.error(`Gate ${gate.id} failed: ${reason}`);
+    allGatesPass = false;
+  } else if (gate.realExternalEvidenceRequired) {
+    status = "NOT RUN";
+    reason = "Automated local checks passed, external manual verification required";
+    // We don't fail the CI for NOT RUN, it's just recorded in the report
   }
 
   // Check forbidden test patterns
   if (pass) {
     const forbiddenRes = run('git grep "expect(true).toBe(true)" -- "*.ts"');
     if (forbiddenRes.output.trim() !== "") {
-       pass = false;
+       status = "FAIL";
        reason = "Forbidden test pattern found!";
+       allGatesPass = false;
     }
   }
 
   report.gates[gate.id] = {
-    status: pass ? "PASS" : "FAIL",
+    status,
     reason
   };
-
-  if (!pass) allGatesPass = false;
 }
 
 writeFileSync('release-report.json', JSON.stringify(report, null, 2));
