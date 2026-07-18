@@ -35,7 +35,7 @@ export interface GraphNode {
   properties: Record<string, any>; // parsed frontmatter
   links: string[]; // outgoing wikilinks (raw link text)
   content: string; // markdown body
-  isUnresolved: boolean; // true if this is just a stub from a link
+  isUnresolved: boolean; // true when a wikilink target has not been resolved to a note
 }
 
 export interface GraphEdge {

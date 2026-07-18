@@ -6,6 +6,7 @@ import {
   initializeVault,
   setActiveVault
 } from '../core/ipc';
+import type { VaultClassification } from '../core/ipc';
 import { FolderOpen, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: string) => void }) {
@@ -13,7 +14,7 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
   const [error, setError] = useState<string | null>(null);
   
   const [candidate, setCandidate] = useState<{ id: string; displayPath: string; displayName: string } | null>(null);
-  const [classification, setClassification] = useState<'empty' | 'mnd_vault' | 'unknown' | null>(null);
+  const [classification, setClassification] = useState<VaultClassification | null>(null);
   
   const [preview, setPreview] = useState<{ token: string; createSet: string[] } | null>(null);
 
@@ -38,19 +39,15 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
       const type = await classifyVaultDestination(selected.candidateId);
       setClassification(type);
       
-      if (type === 'mnd_vault') {
-        // Just initialize/open directly since it's already a vault
-        const vaultId = await initializeVault(selected.candidateId, ''); // might not need preview token for existing
-        await setActiveVault(vaultId);
-        onVaultSelected(vaultId);
-      } else if (type === 'empty') {
-        const previewResult = await previewVaultInitialization(selected.candidateId, 'new');
+      if (['empty_directory', 'existing_mnd_vault', 'existing_obsidian_vault', 'compatible_existing_vault'].includes(type)) {
+        const mode = type === 'existing_mnd_vault' ? 'open' : type === 'empty_directory' ? 'new' : 'integrate';
+        const previewResult = await previewVaultInitialization(selected.candidateId, mode);
         setPreview({
           token: previewResult.previewToken,
           createSet: previewResult.createSet
         });
       } else {
-        setError('Selected folder is neither empty nor a valid MND vault. Please select an empty folder.');
+        setError(`This destination cannot be opened safely (${type.replaceAll('_', ' ')}).`);
       }
       
     } catch (err: any) {
@@ -133,16 +130,16 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
               </p>
             </div>
 
-            {classification === 'empty' && preview && (
+            {preview && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Folder is empty. Ready to initialize.</span>
+                  <span>{classification === 'existing_mnd_vault' ? 'Existing MND vault is ready to open.' : 'Destination is ready for confirmed initialization.'}</span>
                 </div>
                 
                 <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
                   <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider sticky top-0 bg-neutral-950 pb-2">
-                    Files to be created
+                    {preview.createSet.length === 0 ? 'No files will be changed' : 'Files to be created'}
                   </p>
                   <ul className="space-y-1">
                     {preview.createSet.map((path, idx) => (
@@ -167,7 +164,7 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
                     disabled={loading}
                     className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Initialize Vault'}
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : classification === 'existing_mnd_vault' ? 'Open Vault' : 'Initialize Vault'}
                   </button>
                 </div>
               </div>

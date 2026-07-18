@@ -1,125 +1,320 @@
 {
-  "timestamp": "2026-07-18T17:31:27.787Z",
-  "results": [
-    {
-      "id": "G01",
-      "name": "Workspace/build architecture",
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-18T23:15:43.026Z",
+  "overallStatus": "PARTIAL",
+  "nativeBundleFound": true,
+  "gates": {
+    "G01": {
       "status": "PASS",
-      "details": "Verified by Playwright and Vitest. Native packaging NOT RUN due to missing Rust."
+      "reason": "Web build, Rust check, and native bundle artifact verified",
+      "commandIds": [
+        "graphBuild",
+        "cargoCheck"
+      ]
     },
-    {
-      "id": "G02",
-      "name": "First-run folder picker",
+    "G02": {
+      "status": "PARTIAL",
+      "reason": "Typed picker/classification/preview implementation compiled; browser test uses a Tauri bridge double",
+      "commandIds": [
+        "graphE2e",
+        "cargoTest"
+      ]
+    },
+    "G03": {
       "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
+      "reason": "Filesystem classification cases executed in Rust tests",
+      "commandIds": [
+        "cargoTest"
+      ]
     },
-    {
-      "id": "G03",
-      "name": "Destination classification",
+    "G04": {
+      "status": "PARTIAL",
+      "reason": "Destination mutation fingerprint is tested; injected rollback failures are not covered",
+      "commandIds": [
+        "cargoTest"
+      ]
+    },
+    "G05": {
+      "status": "PARTIAL",
+      "reason": "Initialization structure is implemented but exact fixture equivalence was not executed",
+      "commandIds": [
+        "cargoTest"
+      ]
+    },
+    "G06": {
+      "status": "PARTIAL",
+      "reason": "Frontmatter and wikilink parsing executed; full byte-preserving editor matrix is incomplete",
+      "commandIds": [
+        "cargoTest"
+      ]
+    },
+    "G07": {
       "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
+      "reason": "Real SQLite rebuild resolved wikilinks and recorded duplicate IDs",
+      "commandIds": [
+        "cargoTest"
+      ]
     },
-    {
-      "id": "G04",
-      "name": "Vault initialization safety",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
+    "G08": {
+      "status": "PARTIAL",
+      "reason": "Native SQLite schema and transactional rebuild executed; corruption recovery is not covered",
+      "commandIds": [
+        "cargoTest"
+      ]
     },
-    {
-      "id": "G05",
-      "name": "Obsidian-compatible structure",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
+    "G09": {
+      "status": "PARTIAL",
+      "reason": "Sigma workspace browser flow passed with a bridge double; native drag persistence was not exercised",
+      "commandIds": [
+        "graphE2e"
+      ]
     },
-    {
-      "id": "G06",
-      "name": "Markdown/frontmatter model",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
+    "G10": {
+      "status": "PARTIAL",
+      "reason": "Component interactions passed; full production component E2E matrix is incomplete",
+      "commandIds": [
+        "graphTest"
+      ]
     },
-    {
-      "id": "G07",
-      "name": "Wikilink graph indexer",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G08",
-      "name": "SQLite rebuildability",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G09",
-      "name": "Interactive graph UI",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G10",
-      "name": "Hover/click/double-click",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G11",
-      "name": "Internal viewers",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G12",
-      "name": "File explorer",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G13",
-      "name": "Note editor and atomic save",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G14",
-      "name": "External watcher/conflicts",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G15",
-      "name": "Search/filters/backlinks",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G16",
-      "name": "Obsidian opening compatibility",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G17",
-      "name": "Obsidian Bases preservation",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G18",
-      "name": "MND CLI /graph",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G19",
-      "name": "Vault switching/safe copy",
-      "status": "PASS",
-      "details": "Verified by Playwright and Vitest."
-    },
-    {
-      "id": "G20",
-      "name": "Security/performance/release",
+    "G11": {
       "status": "NOT RUN",
-      "details": "Native security boundaries not tested natively."
+      "reason": "MIME-verified native media viewers were not exercised",
+      "commandIds": []
+    },
+    "G12": {
+      "status": "PARTIAL",
+      "reason": "Typed explorer bridge and containment compiled; full CRUD E2E matrix is incomplete",
+      "commandIds": [
+        "graphBuild",
+        "cargoTest"
+      ]
+    },
+    "G13": {
+      "status": "PARTIAL",
+      "reason": "Atomic replacement/hash tests passed; injected failure and full conflict UI matrix are incomplete",
+      "commandIds": [
+        "cargoTest"
+      ]
+    },
+    "G14": {
+      "status": "PARTIAL",
+      "reason": "Native watcher emits typed create/modify/rename/delete/rescan events; debounce is frontend-driven and watcher tests are incomplete",
+      "commandIds": [
+        "cargoCheck"
+      ]
+    },
+    "G15": {
+      "status": "PARTIAL",
+      "reason": "Search/backlink native queries compile; filter UI evidence is incomplete",
+      "commandIds": [
+        "graphBuild",
+        "cargoCheck"
+      ]
+    },
+    "G16": {
+      "status": "PARTIAL",
+      "reason": "Source audit proves no shell wrapper; installed/not-installed Obsidian outcomes were not executed",
+      "commandIds": [
+        "sourceAudit"
+      ]
+    },
+    "G17": {
+      "status": "NOT RUN",
+      "reason": "Byte-for-byte .base preservation matrix was not executed",
+      "commandIds": []
+    },
+    "G18": {
+      "status": "PARTIAL",
+      "reason": "Executable discovery tests passed; packaged Graph command matrix is incomplete",
+      "commandIds": [
+        "graphDiscovery"
+      ]
+    },
+    "G19": {
+      "status": "PARTIAL",
+      "reason": "Persistent recent-vault config and safe staging copy compile; failure-injection matrix is incomplete",
+      "commandIds": [
+        "cargoCheck"
+      ]
+    },
+    "G20": {
+      "status": "PASS",
+      "reason": "All automated security/build/test/performance commands passed and native bundle exists",
+      "commandIds": [
+        "graphBuild",
+        "graphLint",
+        "graphTest",
+        "graphE2e",
+        "cargoFmt",
+        "cargoCheck",
+        "cargoClippy",
+        "cargoTest",
+        "sourceAudit",
+        "performance"
+      ]
+    }
+  },
+  "commands": [
+    {
+      "id": "graph-build",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "build"
+      ],
+      "cwd": "apps/mnd-graph",
+      "exitCode": 0,
+      "durationMs": 1702,
+      "timedOut": false,
+      "stdout": "\n> mnd-graph@0.0.0 build\n> tsc -b && vite build\n\nvite v8.1.5 building client environment for production...\n\u001b[2K\rtransforming...✓ 1804 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.45 kB │ gzip:   0.29 kB\ndist/assets/index-DExdrlfe.css   24.18 kB │ gzip:   6.44 kB\ndist/assets/index-V2OHPB8t.js   400.22 kB │ gzip: 111.72 kB\n\n✓ built in 157ms\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[lightningcss minify] Unknown at rule: @theme\n2  |  \n3  |  @layer theme {\n4  |    @theme default {\n   |          ^\n5  |      --font-sans:\n6  |        -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\",\n[lightningcss minify] Unknown at rule: @theme\n523 |  \n524 |    /* Deprecated */\n525 |    @theme default inline reference {\n    |          ^\n526 |      --blur: 8px;\n527 |      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);\n[lightningcss minify] Unknown at rule: @tailwind\n947 |  \n948 |  @layer utilities {\n949 |    @tailwind utilities;\n    |             ^\n950 |  }\n951 |  \n[lightningcss minify] Unknown at rule: @theme\n950 |  }\n951 |  \n952 |  @theme {\n    |        ^\n953 |    --color-mnd-dark: #121212;\n954 |    --color-mnd-sidebar: #1e1e1e;\n"
+    },
+    {
+      "id": "graph-lint",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "lint"
+      ],
+      "cwd": "apps/mnd-graph",
+      "exitCode": 0,
+      "durationMs": 186,
+      "timedOut": false,
+      "stdout": "\n> mnd-graph@0.0.0 lint\n> oxlint\n\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n"
+    },
+    {
+      "id": "graph-test",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "test"
+      ],
+      "cwd": "apps/mnd-graph",
+      "exitCode": 0,
+      "durationMs": 1201,
+      "timedOut": false,
+      "stdout": "\n> mnd-graph@0.0.0 test\n> vitest run\n\n\n RUN  v4.1.10 D:/mnd proj/mnd/apps/mnd-graph\n\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  02:15:29\n   Duration  769ms (transform 22ms, setup 0ms, import 146ms, tests 23ms, environment 482ms)\n\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n"
+    },
+    {
+      "id": "graph-e2e",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "e2e"
+      ],
+      "cwd": "apps/mnd-graph",
+      "exitCode": 0,
+      "durationMs": 6852,
+      "timedOut": false,
+      "stdout": "\n> mnd-graph@0.0.0 e2e\n> playwright test\n\n\nRunning 2 tests using 1 worker\n··\n  2 passed (6.4s)\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[WebServer] npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[WebServer] npm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[WebServer] (node:30716) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n(node:32664) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] 02:15:34 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=c245e6b9:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=c245e6b9:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6652:55)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7618:22)\n[WebServer]     at recursivelyTraversePassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7606:5)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7672:14)\n[WebServer] 02:15:34 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=c245e6b9:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=c245e6b9:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6652:55)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7701:6)\n[WebServer]     at recursivelyTraverseReconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7688:5)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7713:14)\n"
+    },
+    {
+      "id": "cargo-fmt",
+      "executable": "C:\\Users\\watersize\\.cargo\\bin\\cargo.exe",
+      "args": [
+        "fmt",
+        "--check"
+      ],
+      "cwd": "apps/mnd-graph/src-tauri",
+      "exitCode": 0,
+      "durationMs": 115,
+      "timedOut": false,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "cargo-check",
+      "executable": "C:\\Users\\watersize\\.cargo\\bin\\cargo.exe",
+      "args": [
+        "check"
+      ],
+      "cwd": "apps/mnd-graph/src-tauri",
+      "exitCode": 0,
+      "durationMs": 345,
+      "timedOut": false,
+      "stdout": "",
+      "stderr": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.29s\n"
+    },
+    {
+      "id": "cargo-clippy",
+      "executable": "C:\\Users\\watersize\\.cargo\\bin\\cargo.exe",
+      "args": [
+        "clippy",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "apps/mnd-graph/src-tauri",
+      "exitCode": 0,
+      "durationMs": 401,
+      "timedOut": false,
+      "stdout": "",
+      "stderr": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.31s\n"
+    },
+    {
+      "id": "cargo-test",
+      "executable": "C:\\Users\\watersize\\.cargo\\bin\\cargo.exe",
+      "args": [
+        "test"
+      ],
+      "cwd": "apps/mnd-graph/src-tauri",
+      "exitCode": 0,
+      "durationMs": 931,
+      "timedOut": false,
+      "stdout": "\nrunning 6 tests\ntest index::tests::markdown_metadata_and_wikilinks_are_parsed_without_rewriting_source ... ok\ntest security::tests::path_security_rejects_escape_and_reserved_names ... ok\ntest commands::tests::preview_fingerprint_changes_after_destination_mutation ... ok\ntest security::tests::atomic_write_replaces_and_verifies_content ... ok\ntest commands::tests::destination_classification_uses_real_filesystem_state ... ok\ntest index::tests::sqlite_rebuild_resolves_links_and_records_duplicate_ids ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.41s\n     Running unittests src\\lib.rs (target\\debug\\deps\\app_lib-fb2cddcb783a6090.exe)\n     Running unittests src\\main.rs (target\\debug\\deps\\app-0f629191f0979e2e.exe)\n   Doc-tests app_lib\n"
+    },
+    {
+      "id": "source-audit",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "scripts/source-audit.mjs"
+      ],
+      "cwd": "apps/mnd-graph",
+      "exitCode": 0,
+      "durationMs": 61,
+      "timedOut": false,
+      "stdout": "{\n  \"status\": \"PASS\",\n  \"checkedAt\": \"2026-07-18T23:15:38.929Z\",\n  \"filesChecked\": 25,\n  \"findingCount\": 0,\n  \"findings\": []\n}\n",
+      "stderr": ""
+    },
+    {
+      "id": "performance",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "scripts/perf-benchmarks.mjs"
+      ],
+      "cwd": "apps/mnd-graph",
+      "exitCode": 0,
+      "durationMs": 110,
+      "timedOut": false,
+      "stdout": "{\n  \"status\": \"PASS\",\n  \"generatedAt\": \"2026-07-18T23:15:39.038Z\",\n  \"runtime\": {\n    \"node\": \"v24.14.0\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\"\n  },\n  \"scope\": \"Graphology construction, traversal, search, and filter hot paths\",\n  \"results\": [\n    {\n      \"name\": \"Graphology construction (100 nodes)\",\n      \"thresholdMs\": 500,\n      \"durationMs\": 1.11,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 100,\n        \"edges\": 99\n      }\n    },\n    {\n      \"name\": \"Graphology construction (1000 nodes)\",\n      \"thresholdMs\": 2000,\n      \"durationMs\": 4.076,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 1000,\n        \"edges\": 999\n      }\n    },\n    {\n      \"name\": \"Graphology construction (10000 nodes)\",\n      \"thresholdMs\": 15000,\n      \"durationMs\": 33.57,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 10000,\n        \"edges\": 9999\n      }\n    },\n    {\n      \"name\": \"Graph traversal (10,000 nodes)\",\n      \"thresholdMs\": 1000,\n      \"durationMs\": 0.906,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"checksum\": 267780\n      }\n    },\n    {\n      \"name\": \"Case-insensitive search (10,000 nodes)\",\n      \"thresholdMs\": 100,\n      \"durationMs\": 4.84,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"matches\": 111\n      }\n    },\n    {\n      \"name\": \"Type/tag filter (10,000 nodes)\",\n      \"thresholdMs\": 250,\n      \"durationMs\": 0.633,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"matches\": 2857\n      }\n    }\n  ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "id": "graph-discovery",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "test",
+        "--",
+        "--runInBand",
+        "--testPathPattern=graph-discovery.test"
+      ],
+      "cwd": ".",
+      "exitCode": 0,
+      "durationMs": 3973,
+      "timedOut": false,
+      "stdout": "\n> mnd@0.1.0 pretest\n> npm run build\n\n\n> mnd@0.1.0 build\n> tsc\n\n\n> mnd@0.1.0 test\n> node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --testPathPattern=graph-discovery.test\n\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\nPASS src/commands/graph-discovery.test.ts\n  graph discovery\n    √ prefers packaged path over dev path (2 ms)\n    √ dev path used only in dev mode (1 ms)\n    √ returns executable_not_found when all paths absent\n\nTest Suites: 1 passed, 1 total\nTests:       3 passed, 3 total\nSnapshots:   0 total\nTime:        0.387 s, estimated 1 s\nRan all test suites matching /graph-discovery.test/i.\n"
     }
   ]
 }

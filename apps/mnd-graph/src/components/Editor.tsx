@@ -21,28 +21,11 @@ export function Editor({ vaultId, node, onClose }: { vaultId: string, node: Grap
     let isMounted = true;
     setLoading(true);
     
-    // In a real app, readVaultFile would return { content, identity: { mtime, size, sha256 } }
-    // Or we query metadata. For this mock, assume it just returns content or we can fake identity.
-    // Let's assume the API returns content. We don't have get_metadata in the contract exactly for identity,
-    // wait, the contract says readVaultFile. Let's just pass undefined for baseIdentity if we don't have it,
-    // or if the backend returns it in a wrapper, we extract it. We'll just read content.
-    readVaultFile(vaultId, node.path).then(text => {
-      // If the backend returns a JSON with { content, mtime, size, sha256 } we parse it.
-      // Let's assume it returns just string for now.
-      let parsedText = text;
-      try {
-        const obj = JSON.parse(text);
-        if (obj.content !== undefined) {
-          parsedText = obj.content;
-          setBaseIdentity({ mtime: obj.mtime, size: obj.size, sha256: obj.sha256 });
-        }
-      } catch (e) {
-        // Not json, just string
-      }
-      
+    readVaultFile(vaultId, node.path).then(result => {
       if (isMounted) {
-        setContent(parsedText);
-        setOriginalContent(parsedText);
+        setContent(result.content);
+        setOriginalContent(result.content);
+        setBaseIdentity(result.identity);
         setConflictError(false);
       }
     }).catch(err => {
@@ -60,12 +43,12 @@ export function Editor({ vaultId, node, onClose }: { vaultId: string, node: Grap
     setSaving(true);
     setConflictError(false);
     try {
-      await atomicWriteVaultFile(vaultId, node.path, content, baseIdentity);
+      const nextIdentity = await atomicWriteVaultFile(vaultId, node.path, content, baseIdentity);
       setOriginalContent(content);
-      // optionally update baseIdentity here if returned
+      setBaseIdentity(nextIdentity);
     } catch (err: any) {
       console.error("Failed to save", err);
-      if (err && (err === 'external_change_conflict' || err.message === 'external_change_conflict' || err.includes?.('external_change_conflict'))) {
+      if (String(err).toUpperCase().includes('EXTERNAL_CHANGE_CONFLICT')) {
         setConflictError(true);
       } else {
         alert("Failed to save file: " + String(err));
@@ -83,20 +66,12 @@ export function Editor({ vaultId, node, onClose }: { vaultId: string, node: Grap
     
     if (action === 'reload') {
       setConflictError(false);
-      // Re-read
       if (!node) return;
       try {
-        const text = await readVaultFile(vaultId, node.path);
-        let parsedText = text;
-        try {
-          const obj = JSON.parse(text);
-          if (obj.content !== undefined) {
-            parsedText = obj.content;
-            setBaseIdentity({ mtime: obj.mtime, size: obj.size, sha256: obj.sha256 });
-          }
-        } catch(e) {}
-        setContent(parsedText);
-        setOriginalContent(parsedText);
+        const result = await readVaultFile(vaultId, node.path);
+        setContent(result.content);
+        setOriginalContent(result.content);
+        setBaseIdentity(result.identity);
       } catch (e) {
         alert("Failed to reload: " + String(e));
       }
@@ -104,10 +79,9 @@ export function Editor({ vaultId, node, onClose }: { vaultId: string, node: Grap
     }
     
     if (action === 'save_copy') {
-      // save to .copy.md
       if (!node) return;
       try {
-        const copyPath = node.path.replace('.md', '.copy.md');
+        const copyPath = node.path.endsWith('.md') ? `${node.path.slice(0, -3)}.copy.md` : `${node.path}.copy`;
         await atomicWriteVaultFile(vaultId, copyPath, content);
         setConflictError(false);
         alert("Saved as copy to " + copyPath);
@@ -118,9 +92,10 @@ export function Editor({ vaultId, node, onClose }: { vaultId: string, node: Grap
     }
     
     if (action === 'compare') {
-      alert("Compare view not fully implemented. Showing diff in console.");
-      console.log("Original:", originalContent);
-      console.log("Current:", content);
+      if (!node) return;
+      const external = await readVaultFile(vaultId, node.path);
+      const comparison = `--- External file ---\n${external.content}\n\n--- Your unsaved version ---\n${content}`;
+      setContent(comparison);
       return;
     }
   };

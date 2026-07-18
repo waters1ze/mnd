@@ -1,10 +1,38 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { GraphEdge, GraphNode } from './types';
+
+export type VaultClassification =
+  | 'missing'
+  | 'empty_directory'
+  | 'existing_mnd_vault'
+  | 'existing_obsidian_vault'
+  | 'compatible_existing_vault'
+  | 'unknown_nonempty_directory'
+  | 'file_not_directory'
+  | 'drive_root'
+  | 'inaccessible'
+  | 'invalid';
+
+export interface BaseIdentity {
+  mtime: number;
+  size: number;
+  sha256: string;
+}
+
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  modified: number;
+  mediaKind: string;
+}
 
 export async function selectVaultDirectory(): Promise<{ candidateId: string; displayPath: string; displayName: string }> {
   return await invoke('select_vault_directory');
 }
 
-export async function classifyVaultDestination(candidateId: string): Promise<'empty' | 'mnd_vault' | 'unknown'> {
+export async function classifyVaultDestination(candidateId: string): Promise<VaultClassification> {
   return await invoke('classify_vault_destination', { candidateId });
 }
 
@@ -16,7 +44,7 @@ export async function initializeVault(candidateId: string, previewToken: string)
   return await invoke('initialize_vault', { candidateId, previewToken });
 }
 
-export async function getAppConfig(): Promise<{ schemaVersion: number; activeVaultPath: string; recentVaults: Array<{ path: string; lastOpened: string }>; updatedAt: string }> {
+export async function getAppConfig(): Promise<{ schemaVersion: number; activeVaultId: string | null; activeVaultPath: string | null; recentVaults: Array<{ vaultId: string; path: string; name: string; lastOpened: string }>; updatedAt: string }> {
   return await invoke('get_app_config');
 }
 
@@ -24,23 +52,35 @@ export async function setActiveVault(vaultId: string): Promise<void> {
   return await invoke('set_active_vault', { vaultId });
 }
 
-export async function loadGraph(): Promise<any> {
-  return await invoke('load_graph');
+export async function loadGraph(): Promise<{ nodes: Record<string, GraphNode>; edges: GraphEdge[] }> {
+  const data = await invoke<{ nodes: GraphNode[] | Record<string, GraphNode>; edges: GraphEdge[] }>('load_graph');
+  const nodes = Array.isArray(data.nodes)
+    ? Object.fromEntries(data.nodes.map(node => [node.id, node]))
+    : data.nodes;
+  return { nodes, edges: data.edges };
+}
+
+export async function rebuildVaultIndex(): Promise<string> {
+  return await invoke('rebuild_vault_index');
 }
 
 export async function loadGraphLayout(): Promise<Record<string, { x: number; y: number }>> {
-  return await invoke('load_graph_layout');
+  const value = await invoke<Record<string, { x: number; y: number }> | Array<{ nodeId: string; position: { x: number; y: number } }>>('load_graph_layout');
+  return Array.isArray(value)
+    ? Object.fromEntries(value.map(update => [update.nodeId, update.position]))
+    : value;
 }
 
 export async function saveGraphLayout(layout: Record<string, { x: number; y: number }>): Promise<void> {
-  return await invoke('save_graph_layout', { layout });
+  const updates = Object.entries(layout).map(([nodeId, position]) => ({ nodeId, position }));
+  return await invoke('save_graph_layout', { updates });
 }
 
-export async function readVaultFile(vaultId: string, relativePath: string): Promise<string> {
+export async function readVaultFile(vaultId: string, relativePath: string): Promise<{ content: string; identity: BaseIdentity }> {
   return await invoke('read_vault_file', { vaultId, relativePath });
 }
 
-export async function atomicWriteVaultFile(vaultId: string, relativePath: string, content: string, baseIdentity?: { mtime: number; size: number; sha256: string }): Promise<void> {
+export async function atomicWriteVaultFile(vaultId: string, relativePath: string, content: string, baseIdentity?: BaseIdentity): Promise<BaseIdentity> {
   return await invoke('atomic_write_vault_file', { vaultId, relativePath, content, baseIdentity });
 }
 
@@ -60,7 +100,7 @@ export async function stopVaultWatcher(vaultId: string): Promise<void> {
   return await invoke('stop_vault_watcher', { vaultId });
 }
 
-export async function listVaultDirectory(vaultId: string, relativePath: string = ''): Promise<any[]> {
+export async function listVaultDirectory(vaultId: string, relativePath: string = ''): Promise<DirectoryEntry[]> {
   return await invoke('list_vault_directory', { vaultId, relativePath });
 }
 

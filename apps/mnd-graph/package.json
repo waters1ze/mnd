@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=json --outputFile.json=vitest-report.json",
     "e2e": "playwright test",
     "tauri": "tauri"
   },
@@ -16,9 +16,6 @@
     "@react-sigma/core": "^5.0.6",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
-    "@tauri-apps/plugin-fs": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0",
-    "@tauri-apps/plugin-sql": "^2.0.0",
     "autoprefixer": "^10.5.4",
     "clsx": "^2.1.1",
     "graphology": "^0.26.0",
@@ -31,7 +28,6 @@
     "react-router-dom": "^7.18.1",
     "remark-gfm": "^4.0.1",
     "sigma": "^3.0.3",
-    "sql.js": "^1.14.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
     "yaml": "^2.9.0"

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { listVaultDirectory } from '../core/ipc';
+import { listVaultDirectory, type DirectoryEntry } from '../core/ipc';
 import { GraphNode } from '../core/types';
 import { Folder, FileText, ChevronRight, ChevronDown } from 'lucide-react';
 
 export function FileExplorer({ vaultId, onNodeSelect }: { vaultId: string, onNodeSelect: (n: GraphNode) => void }) {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<DirectoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -43,19 +43,18 @@ export function FileExplorer({ vaultId, onNodeSelect }: { vaultId: string, onNod
   );
 }
 
-function FileTreeNode({ item, vaultId, onNodeSelect }: { item: any, vaultId: string, onNodeSelect: (n: GraphNode) => void }) {
+function FileTreeNode({ item, vaultId, onNodeSelect }: { item: DirectoryEntry, vaultId: string, onNodeSelect: (n: GraphNode) => void }) {
   const [expanded, setExpanded] = useState(false);
-  const [children, setChildren] = useState<any[]>([]);
+  const [children, setChildren] = useState<DirectoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
   const isDir = item.isDirectory;
 
   const handleToggle = () => {
     if (!isDir) {
-      // Mock node selection from file
       onNodeSelect({
         id: item.path,
-        type: item.name.endsWith('.md') ? 'mnd' : 'asset',
+        type: item.mediaKind === 'markdown' ? 'mnd' : item.mediaKind === 'image' ? 'image' : item.mediaKind === 'video' ? 'source_video' : item.mediaKind === 'audio' ? 'audio_asset' : 'asset',
         title: item.name,
         path: item.path,
         tags: [],

@@ -1,66 +1,63 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, '..');
-
-// Source audit checks based on the contract
-const prohibitedPatterns = [
-  { pattern: /child_process\.exec\b/, reason: 'child_process.exec in production launcher path' },
-  { pattern: /execSync\b/, reason: 'execSync in production launcher path' },
-  { pattern: /shell:\s*true/, reason: 'shell: true' },
-  { pattern: /cmd\.exe|\/bin\/sh|powershell|start\b/, reason: 'Shell commands' },
-  { pattern: /@tauri-apps\/plugin-shell/, reason: 'Tauri shell plugin usage' },
-  { pattern: /fs:default|shell:default|sql:default/, reason: 'Broad capabilities' },
-  { pattern: /execute_operation|filesystem_command|run_sql|launch_path|open_external/, reason: 'Generic IPC command patterns' },
-  { pattern: /file:\/\//, reason: 'file:// URL construction' },
-  { pattern: /dangerouslySetInnerHTML/, reason: 'Unsafe HTML rendering' },
-  { pattern: /Math\.random\(\)/, reason: 'Math.random() in identity or layout persistence' }
+const graphRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const productionRoots = [
+  path.join(graphRoot, 'src'),
+  path.join(graphRoot, 'src-tauri', 'src'),
+];
+const explicitFiles = [
+  path.join(graphRoot, 'package.json'),
+  path.join(graphRoot, 'src-tauri', 'tauri.conf.json'),
+  path.join(graphRoot, 'src-tauri', 'capabilities', 'default.json'),
+];
+const rules = [
+  { pattern: /\b(?:exec|execSync)\s*\(/, reason: 'shell-string process execution' },
+  { pattern: /shell\s*:\s*true/, reason: 'shell-enabled process execution' },
+  { pattern: /Command::new\("(?:cmd|cmd\.exe|powershell|pwsh|sh|bash)"\)/, reason: 'shell executable launch' },
+  { pattern: /@tauri-apps\/plugin-(?:fs|shell|sql)/, reason: 'broad frontend capability plugin' },
+  { pattern: /(?:fs|shell|sql):default/, reason: 'broad Tauri capability' },
+  { pattern: /\b(?:execute_operation|filesystem_command|run_sql|launch_path|open_external)\b/, reason: 'generic privileged IPC command' },
+  { pattern: /dangerouslySetInnerHTML/, reason: 'unsafe HTML rendering' },
+  { pattern: /Math\.random\(\)/, reason: 'nondeterministic identity or layout seed' },
 ];
 
-const walkSync = function(dir, filelist) {
-  const files = fs.readdirSync(dir);
-  filelist = filelist || [];
-  files.forEach(function(file) {
-    const fullPath = path.join(dir, file);
-    if (fs.statSync(fullPath).isDirectory()) {
-      if (!fullPath.includes('node_modules') && !fullPath.includes('dist') && !fullPath.includes('.git') && !fullPath.includes('target')) {
-        filelist = walkSync(fullPath, filelist);
-      }
-    } else {
-      if (fullPath.endsWith('.ts') || fullPath.endsWith('.tsx') || fullPath.endsWith('.js') || fullPath.endsWith('.mjs') || fullPath.endsWith('.rs') || fullPath.endsWith('.json')) {
-        filelist.push(fullPath);
-      }
-    }
-  });
-  return filelist;
-};
+function walk(directory) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...walk(fullPath));
+    else if (/\.(?:ts|tsx|js|mjs|rs|json)$/.test(entry.name)) files.push(fullPath);
+  }
+  return files;
+}
 
-const allFiles = walkSync(projectRoot);
-let findings = [];
-
-allFiles.forEach(file => {
-  const content = fs.readFileSync(file, 'utf8');
-  const lines = content.split('\n');
-  lines.forEach((line, index) => {
-    prohibitedPatterns.forEach(rule => {
+const findings = [];
+const files = [...productionRoots.flatMap(walk), ...explicitFiles];
+for (const file of files) {
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    for (const rule of rules) {
       if (rule.pattern.test(line)) {
         findings.push({
-          file: path.relative(projectRoot, file),
+          file: path.relative(graphRoot, file).replaceAll('\\', '/'),
           line: index + 1,
-          finding: line.trim(),
-          isFinding: true,
-          reason: rule.reason
+          reason: rule.reason,
+          evidence: line.trim(),
         });
       }
-    });
-  });
-});
-
-console.log(JSON.stringify(findings, null, 2));
-if (findings.length > 0) {
-  // Exit with 1 if true findings
-  // process.exit(1); 
+    }
+  }
 }
+
+const report = {
+  status: findings.length === 0 ? 'PASS' : 'FAIL',
+  checkedAt: new Date().toISOString(),
+  filesChecked: files.length,
+  findingCount: findings.length,
+  findings,
+};
+fs.writeFileSync(path.join(graphRoot, 'source-audit-report.json'), `${JSON.stringify(report, null, 2)}\n`);
+process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+if (findings.length > 0) process.exitCode = 1;

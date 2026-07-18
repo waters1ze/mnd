@@ -7,7 +7,7 @@ import { SearchPanel } from './components/SearchPanel';
 import { BacklinksPanel } from './components/BacklinksPanel';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { GraphNode } from './core/types';
-import { getAppConfig } from './core/ipc';
+import { getAppConfig, startVaultWatcher, stopVaultWatcher } from './core/ipc';
 import { Settings, Folder, Search, Link2, GitBranch } from 'lucide-react';
 
 export default function App() {
@@ -19,17 +19,22 @@ export default function App() {
     // Try to load active vault from backend config
     let isMounted = true;
     getAppConfig().then(config => {
-      if (isMounted && config && config.activeVaultPath) {
-        // Here the config activeVaultPath is actually just the path, but the backend uses vaultId now
-        // Assuming config returns activeVaultPath or vaultId
-        const activeId = (config as any).vaultId || config.activeVaultPath;
-        if (activeId) setVaultId(activeId);
+      if (isMounted && config.activeVaultId && config.activeVaultPath) {
+        setVaultId(config.activeVaultId);
       }
     }).catch(err => {
       console.warn("Could not get app config on boot", err);
     });
     return () => { isMounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (!vaultId) return;
+    startVaultWatcher(vaultId).catch(error => console.warn('Could not start vault watcher', error));
+    return () => {
+      stopVaultWatcher(vaultId).catch(error => console.warn('Could not stop vault watcher', error));
+    };
+  }, [vaultId]);
 
   if (!vaultId) {
     return <Onboarding onVaultSelected={setVaultId} />;

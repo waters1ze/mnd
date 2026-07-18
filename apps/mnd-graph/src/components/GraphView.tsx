@@ -3,19 +3,46 @@ import { SigmaContainer, ControlsContainer, ZoomControl, FullScreenControl, useR
 import '@react-sigma/core/lib/style.css';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
-import { loadGraph, loadGraphLayout, saveGraphLayout } from '../core/ipc';
+import { listen } from '@tauri-apps/api/event';
+import { loadGraph, loadGraphLayout, rebuildVaultIndex, saveGraphLayout } from '../core/ipc';
 import { GraphNode } from '../core/types';
 import { Filter, Eye, Tag } from 'lucide-react';
+
+function initialPosition(id: string): { x: number; y: number } {
+  let hash = 2166136261;
+  for (const character of id) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  const angle = ((hash >>> 0) % 3600) / 3600 * Math.PI * 2;
+  const radius = 20 + ((hash >>> 12) % 8000) / 100;
+  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+}
 
 // A component that handles graph loading and layout saving
 function GraphDataHandler({ vaultId, setNodesCount, setEdgesCount }: { vaultId: string, setNodesCount: (n: number) => void, setEdgesCount: (n: number) => void }) {
   const loadGraphIntoSigma = useLoadGraph();
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let unlisten: (() => void) | undefined;
+    listen('vault://changed', () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setRevision(value => value + 1), 250);
+    }).then(dispose => { unlisten = dispose; }).catch(error => console.warn('Could not subscribe to vault changes', error));
+    return () => {
+      if (timer) clearTimeout(timer);
+      unlisten?.();
+    };
+  }, [vaultId]);
   
   useEffect(() => {
     let isMounted = true;
     
     async function init() {
       try {
+        await rebuildVaultIndex();
         const indexData = await loadGraph();
         const savedLayout = await loadGraphLayout();
         
@@ -25,18 +52,17 @@ function GraphDataHandler({ vaultId, setNodesCount, setEdgesCount }: { vaultId: 
         const edges = indexData.edges || [];
         
         for (const [id, node] of Object.entries<any>(nodes)) {
-          const pos = savedLayout[id] || { 
-            x: Math.random() * 100, 
-            y: Math.random() * 100 
-          };
+          const { type: nodeType, ...nodeAttributes } = node;
+          const pos = savedLayout[id] || initialPosition(id);
           
           g.addNode(id, {
-            ...node,
+            ...nodeAttributes,
+            nodeType,
             x: pos.x,
             y: pos.y,
-            size: node.type === 'image' || node.type === 'source_video' ? 12 : 8,
+            size: nodeType === 'image' || nodeType === 'source_video' ? 12 : 8,
             label: node.title || id,
-            color: node.isUnresolved ? '#ef4444' : (node.type === 'mnd' ? '#3b82f6' : '#737373')
+            color: node.isUnresolved ? '#ef4444' : (nodeType === 'mnd' ? '#3b82f6' : '#737373')
           });
         }
         
@@ -72,7 +98,7 @@ function GraphDataHandler({ vaultId, setNodesCount, setEdgesCount }: { vaultId: 
     
     init();
     return () => { isMounted = false; };
-  }, [vaultId, loadGraphIntoSigma, setNodesCount, setEdgesCount]);
+  }, [vaultId, revision, loadGraphIntoSigma, setNodesCount, setEdgesCount]);
   
   return null;
 }
@@ -85,7 +111,7 @@ function GraphEvents({ onNodeDoubleClicked }: { onNodeDoubleClicked: (node: Grap
     registerEvents({
       doubleClickNode: (event: { node: string }) => {
         const nodeAttr = sigma.getGraph().getNodeAttributes(event.node);
-        onNodeDoubleClicked(nodeAttr as GraphNode);
+        onNodeDoubleClicked({ ...nodeAttr, type: nodeAttr.nodeType } as GraphNode);
       },
       enterNode: (_event: unknown) => {
         // hover card: set cursor
@@ -139,6 +165,7 @@ export function GraphView({ vaultId, onNodeDoubleClicked }: { vaultId: string, o
       <SigmaContainer 
         style={{ width: "100%", height: "100%" }} 
         settings={{ 
+          allowInvalidContainer: true,
           renderEdgeLabels: true,
           defaultNodeColor: "#737373",
           defaultEdgeColor: "#404040",
