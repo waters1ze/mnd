@@ -1,7 +1,7 @@
-import { discoverGraphExecutable } from './graph-discovery';
-import fs from 'fs';
+import { discoverGraphExecutable } from './graph-discovery.js';
+import fs from 'node:fs';
 
-jest.mock('fs');
+jest.mock('node:fs');
 
 describe('graph discovery', () => {
   afterEach(() => {

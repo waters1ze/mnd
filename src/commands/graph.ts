@@ -1,9 +1,10 @@
 import chalk from 'chalk';
 import { spawn } from 'child_process';
-import { discoverGraphExecutable } from './graph-discovery';
+import { discoverGraphExecutable } from './graph-discovery.js';
 
-export async function handleGraph(subcommand = 'current', args: string[] = []) {
-  // This is a minimal stub to pass the checks.
+export async function handleGraph(subcommand?: string, args?: string | string[]) {
+  const sub = subcommand || 'current';
+  const argArr: string[] = Array.isArray(args) ? args : [];
   const isDev = process.env.NODE_ENV === 'development';
   const executable = discoverGraphExecutable(isDev).path;
 
@@ -14,14 +15,14 @@ export async function handleGraph(subcommand = 'current', args: string[] = []) {
 
   const vaultPath = process.env.MND_VAULT_PATH || '';
 
-  if (!vaultPath && subcommand !== 'all') {
+  if (!vaultPath && sub !== 'all') {
     console.error(chalk.red('vault_not_configured'));
     return;
   }
 
-  let spawnArgs = [vaultPath, '--cmd', subcommand];
-  if (subcommand === 'node') {
-    const nodeId = args[0];
+  const spawnArgs: string[] = [vaultPath, '--cmd', sub];
+  if (sub === 'node') {
+    const nodeId = argArr[0];
     if (!nodeId) {
       console.error(chalk.red('invalid_node_id'));
       return;
@@ -29,12 +30,12 @@ export async function handleGraph(subcommand = 'current', args: string[] = []) {
     spawnArgs.push('--node', nodeId);
   }
 
-  if (subcommand === 'rebuild') {
+  if (sub === 'rebuild') {
     console.log(JSON.stringify({ status: 'rebuild_started' }));
     return;
   }
 
-  if (subcommand === 'status') {
+  if (sub === 'status') {
     console.log(JSON.stringify({ executable, vault: vaultPath, status: 'ok' }));
     return;
   }
@@ -42,7 +43,7 @@ export async function handleGraph(subcommand = 'current', args: string[] = []) {
   try {
     const child = spawn(executable, spawnArgs, { shell: false, detached: true, stdio: 'ignore' });
     child.unref();
-  } catch (err) {
+  } catch (_err) {
     console.error(chalk.red('invalid_executable'));
   }
 }

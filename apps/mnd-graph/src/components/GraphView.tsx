@@ -1,16 +1,15 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { SigmaContainer, ControlsContainer, ZoomControl, FullScreenControl, useRegisterEvents, useLoadGraph, useSigma } from '@react-sigma/core';
 import '@react-sigma/core/lib/style.css';
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { loadGraph, loadGraphLayout, saveGraphLayout } from '../core/ipc';
 import { GraphNode } from '../core/types';
-import { Filter, Eye, Tag, Activity } from 'lucide-react';
+import { Filter, Eye, Tag } from 'lucide-react';
 
 // A component that handles graph loading and layout saving
 function GraphDataHandler({ vaultId, setNodesCount, setEdgesCount }: { vaultId: string, setNodesCount: (n: number) => void, setEdgesCount: (n: number) => void }) {
   const loadGraphIntoSigma = useLoadGraph();
-  const sigma = useSigma();
   
   useEffect(() => {
     let isMounted = true;
@@ -83,14 +82,13 @@ function GraphEvents({ onNodeDoubleClicked }: { onNodeDoubleClicked: (node: Grap
   const sigma = useSigma();
   
   useEffect(() => {
-    // Sigma events
     registerEvents({
-      doubleClickNode: (event: any) => {
+      doubleClickNode: (event: { node: string }) => {
         const nodeAttr = sigma.getGraph().getNodeAttributes(event.node);
         onNodeDoubleClicked(nodeAttr as GraphNode);
       },
-      enterNode: (event: any) => {
-        // We could implement hover cards here
+      enterNode: (_event: unknown) => {
+        // hover card: set cursor
         document.body.style.cursor = "pointer";
       },
       leaveNode: () => {

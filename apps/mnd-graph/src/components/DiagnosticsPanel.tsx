@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { loadDiagnostics } from '../core/ipc';
-import { GraphNode } from '../core/types';
-import { AlertTriangle, AlertCircle, FileText } from 'lucide-react';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
 
-export function DiagnosticsPanel({ vaultId, onNodeSelect }: { vaultId: string, onNodeSelect: (n: GraphNode) => void }) {
+export function DiagnosticsPanel({ vaultId }: { vaultId: string }) {
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 

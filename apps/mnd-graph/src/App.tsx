@@ -7,8 +7,8 @@ import { SearchPanel } from './components/SearchPanel';
 import { BacklinksPanel } from './components/BacklinksPanel';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { GraphNode } from './core/types';
-import { getAppConfig, setActiveVault } from './core/ipc';
-import { Settings, Folder, Search, Link2, Activity, GitBranch } from 'lucide-react';
+import { getAppConfig } from './core/ipc';
+import { Settings, Folder, Search, Link2, GitBranch } from 'lucide-react';
 
 export default function App() {
   const [vaultId, setVaultId] = useState<string | null>(null);
@@ -63,8 +63,8 @@ export default function App() {
         <div className="w-72 bg-neutral-900 border-r border-neutral-800 z-10 flex flex-col shadow-xl shrink-0">
           {activeSidebar === 'explorer' && <FileExplorer vaultId={vaultId} onNodeSelect={setSelectedNode} />}
           {activeSidebar === 'search' && <SearchPanel vaultId={vaultId} onNodeSelect={setSelectedNode} />}
-          {activeSidebar === 'diagnostics' && <DiagnosticsPanel vaultId={vaultId} onNodeSelect={setSelectedNode} />}
-          {activeSidebar === 'backlinks' && <BacklinksPanel vaultId={vaultId} selectedNode={selectedNode} onNodeSelect={setSelectedNode} />}
+          {activeSidebar === 'diagnostics' && <DiagnosticsPanel vaultId={vaultId} />}
+          {activeSidebar === 'backlinks' && <BacklinksPanel vaultId={vaultId} selectedNode={selectedNode} />}
         </div>
       )}
 

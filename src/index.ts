@@ -39,6 +39,7 @@ import { registerAccountCommands } from "./commands/account.js";
 import { registerSyncCommands } from "./commands/sync.js";
 import { registerUpdateCommands } from "./commands/update.js";
 import { handleGraph } from "./commands/graph.js";
+const graphCommandHandler = (args: string[], _rawInput: string) => handleGraph(args[0], args.slice(1));
 
 // ─── Startup checks ───────────────────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ async function main(): Promise<void> {
         ].join("\n")));
       },
     },
-    { name: "graph", handler: handleGraph },
+    { name: "graph", handler: graphCommandHandler },
   ]);
 
   registerAccountCommands();

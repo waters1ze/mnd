@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { loadBacklinks } from '../core/ipc';
 import { GraphNode } from '../core/types';
-import { Link2, ArrowRight } from 'lucide-react';
+import { Link2 } from 'lucide-react';
 
-export function BacklinksPanel({ vaultId, selectedNode, onNodeSelect }: { vaultId: string, selectedNode: GraphNode | null, onNodeSelect: (n: GraphNode) => void }) {
+export function BacklinksPanel({ vaultId, selectedNode }: { vaultId: string, selectedNode: GraphNode | null }) {
   const [links, setLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
