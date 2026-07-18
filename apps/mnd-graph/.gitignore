@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Ephemeral report files
+vitest-report.json
+playwright-report.json
+graph-release-report.json
+coverage/
+.nyc_output/

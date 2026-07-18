@@ -7,9 +7,6 @@
   ],
   "permissions": [
     "core:default",
-    "fs:default",
-    "dialog:default",
-    "shell:default",
-    "sql:default"
+    "dialog:default"
   ]
 }

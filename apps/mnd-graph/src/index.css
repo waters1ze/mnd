@@ -1,6 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mnd-dark: #121212;
+  --color-mnd-sidebar: #1e1e1e;
+  --color-mnd-accent: #007acc;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #121212;
+  background-color: var(--color-mnd-dark);
   color: #fff;
 }
