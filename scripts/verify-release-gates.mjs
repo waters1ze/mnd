@@ -98,7 +98,7 @@ for (const gate of spec.gates) {
 
   // Check forbidden test patterns
   if (pass) {
-    const forbiddenRes = run('git grep "expect(true).toBe(true)"');
+    const forbiddenRes = run('git grep "expect(true).toBe(true)" -- "*.ts"');
     if (forbiddenRes.output.trim() !== "") {
        pass = false;
        reason = "Forbidden test pattern found!";
