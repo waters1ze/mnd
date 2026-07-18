@@ -1,17 +1,49 @@
-import { TtyOwnershipCoordinator } from "../src/ui/tty.js";
-import { stdin } from "node:process";
+import { releaseInkStdin, TtyAdapter } from "../src/ui/tty.js";
 
-describe("TtyOwnershipCoordinator", () => {
-  it("should release Ink and restore stdin state", async () => {
-    // We cannot mock stdin easily in Jest without breaking test runner,
-    // but we can ensure the promise resolves after the timeout.
+describe("TtyOwnershipCoordinator / releaseInkStdin", () => {
+  it("should release Ink and restore stdin state via adapter", async () => {
+    let rawModeState = true;
+    let resumed = false;
+
+    const mockAdapter: TtyAdapter = {
+      isTTY: true,
+      setRawMode: jest.fn((enabled) => { rawModeState = enabled; }),
+      resume: jest.fn(() => { resumed = true; }),
+      pause: jest.fn()
+    };
+
+    let promiseResolved = false;
+    const waitUntilExitPromise = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        promiseResolved = true;
+        resolve();
+      }, 10);
+    });
+
+    await releaseInkStdin(waitUntilExitPromise, mockAdapter);
+
+    expect(promiseResolved).toBe(true);
+    expect(mockAdapter.setRawMode).toHaveBeenCalledWith(false);
+    expect(rawModeState).toBe(false);
+    expect(mockAdapter.resume).toHaveBeenCalled();
+    expect(resumed).toBe(true);
+  });
+
+  it("should still restore stdin if waitUntilExitPromise rejects", async () => {
+    const mockAdapter: TtyAdapter = {
+      isTTY: true,
+      setRawMode: jest.fn(),
+      resume: jest.fn(),
+      pause: jest.fn()
+    };
+
+    const rejectingPromise = Promise.reject(new Error("Ink error"));
     
-    let resolved = false;
-    const p = Promise.resolve().then(() => { resolved = true; });
-    
-    await TtyOwnershipCoordinator.releaseInk(p);
-    
-    expect(resolved).toBe(true);
-    // process.stdin.resume() should have been called (hard to assert side effects on global process object in jest)
+    await expect(releaseInkStdin(rejectingPromise, mockAdapter)).rejects.toThrow("Ink error");
+
+    // finally block should still execute!
+    expect(mockAdapter.setRawMode).toHaveBeenCalledWith(false);
+    expect(mockAdapter.resume).toHaveBeenCalled();
   });
 });
+

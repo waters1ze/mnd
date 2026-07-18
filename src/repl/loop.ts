@@ -55,9 +55,14 @@ export async function promptInput(promptText: string, initialInput: string = "")
       })
     );
 
-    import("../ui/tty.js").then(({ TtyOwnershipCoordinator }) => {
-      TtyOwnershipCoordinator.releaseInk(unmount.waitUntilExit()).then(() => {
+    import("../ui/tty.js").then(({ releaseInkStdin }) => {
+      releaseInkStdin(unmount.waitUntilExit()).then(() => {
         resolve(result);
+      }).catch((err) => {
+        // If there's an error during unmount/resume, we must still resolve 
+        // to prevent hanging, or let the caller handle it. Resolving null mimics onExit.
+        console.error("Error releasing Ink stdin:", err);
+        resolve(null);
       });
     });
   });

@@ -23,17 +23,27 @@ jest.mock("@clack/prompts", () => ({
   isCancel: jest.fn().mockReturnValue(false),
   confirm: jest.fn().mockResolvedValue(true)
 }));
-jest.mock("../src/integrations/obsidian.js", () => ({
-  registerVaultSafely: jest.fn().mockResolvedValue({ success: true, vaultId: "test-id" }),
-  getRegisteredVaultId: jest.fn().mockResolvedValue(null),
-  openRegisteredVault: jest.fn().mockResolvedValue(undefined)
-}));
-jest.mock("node:fs", () => ({
-  existsSync: jest.fn().mockReturnValue(false),
-  writeFileSync: jest.fn(),
-  mkdirSync: jest.fn(),
-  readdirSync: jest.fn().mockReturnValue([])
-}));
+jest.mock("../src/integrations/obsidian.js", () => {
+  const original = jest.requireActual("../src/integrations/obsidian.js");
+  return {
+    ...original,
+    registerVaultSafely: jest.fn().mockResolvedValue({ success: true, vaultId: "test-id" }),
+    getRegisteredVaultId: jest.fn().mockResolvedValue(null),
+    openRegisteredVault: jest.fn().mockResolvedValue(undefined)
+  };
+});
+jest.mock("node:fs", () => {
+  const original = jest.requireActual("node:fs");
+  return {
+    ...original,
+    existsSync: jest.fn().mockReturnValue(false),
+    writeFileSync: jest.fn(),
+    mkdirSync: jest.fn(),
+    readdirSync: jest.fn().mockReturnValue([]),
+    statSync: jest.fn((p: string) => ({ isDirectory: () => true })),
+    realpathSync: jest.fn((p: string) => p)
+  };
+});
 jest.mock("node:fs/promises", () => ({
   mkdir: jest.fn().mockResolvedValue(undefined)
 }));

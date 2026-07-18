@@ -7,8 +7,8 @@ import { backupFile, atomicWriteFile } from "../core/atomic.js";
 import { getAppDataDir } from "../core/paths.js";
 import crypto from "node:crypto";
 import { Buffer } from "node:buffer";
-
-import { realpathSync, statSync } from "node:fs";
+import { statSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 
 export function normalizeVaultPath(p: string): string {
   let n = resolve(normalize(p));
@@ -19,12 +19,24 @@ export function normalizeVaultPath(p: string): string {
 }
 
 export function normalizeObsidianVaultInput(input: string): string {
-  // Strip quotes
-  let p = input.replace(/^["']+|["']+$/g, "");
+  // Strip matching quotes
+  let p = input.trim();
+  if (p.startsWith('"') && p.endsWith('"') && p.length >= 2) p = p.slice(1, -1);
+  if (p.startsWith("'") && p.endsWith("'") && p.length >= 2) p = p.slice(1, -1);
   
-  // Expand %VAR%
-  p = p.replace(/%([^%]+)%/g, (_, v) => process.env[v] || "");
+  // Expand ~
+  if (p.startsWith('~')) {
+    p = join(homedir(), p.slice(1));
+  }
+
+  // Expand %VAR% safely (leave if unknown)
+  p = p.replace(/%([^%]+)%/g, (match, v) => process.env[v] || match);
   
+  // Make relative paths absolute based on current directory
+  if (!require("node:path").isAbsolute(p)) {
+    p = require("node:path").resolve(p);
+  }
+
   p = normalizeVaultPath(p);
   
   if (/^[a-zA-Z]:\\$/.test(p) || p === "\\" || p === "/") {
@@ -192,17 +204,25 @@ export function openRegisteredVault(vaultId: string, homeNote: string = "Home"):
     const uri = uriObj.toString();
     
     import("node:child_process").then(({ spawn }) => {
-      let proc;
-      if (process.platform === "win32") {
-        const launcher = getWindowsLauncher(uri);
-        proc = spawn(launcher.exe, launcher.args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
-      } else if (process.platform === "darwin") {
-        proc = spawn("open", [uri], { detached: true, stdio: "ignore" });
-      } else {
-        proc = spawn("xdg-open", [uri], { detached: true, stdio: "ignore" });
+      try {
+        let proc;
+        if (process.platform === "win32") {
+          const launcher = getWindowsLauncher(uri);
+          proc = spawn(launcher.exe, launcher.args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
+        } else if (process.platform === "darwin") {
+          proc = spawn("open", [uri], { detached: true, stdio: "ignore" });
+        } else {
+          proc = spawn("xdg-open", [uri], { detached: true, stdio: "ignore" });
+        }
+
+        proc.once("error", (err) => rejectFn(err));
+        proc.once("spawn", () => {
+          proc.unref();
+          resolveFn();
+        });
+      } catch (err) {
+        rejectFn(err);
       }
-      proc.unref();
-      resolveFn();
     }).catch(rejectFn);
   });
 }
@@ -211,11 +231,18 @@ export function launchObsidianApp(): Promise<void> {
   return new Promise((resolveFn, rejectFn) => {
     if (process.platform === "win32") {
       import("node:child_process").then(({ spawn }) => {
-        const launcher = getWindowsLauncher("obsidian://");
-        const proc = spawn(launcher.exe, launcher.args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
-        proc.unref();
-        resolveFn();
-      });
+        try {
+          const launcher = getWindowsLauncher("obsidian://");
+          const proc = spawn(launcher.exe, launcher.args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
+          proc.once("error", (err) => rejectFn(err));
+          proc.once("spawn", () => {
+            proc.unref();
+            resolveFn();
+          });
+        } catch (err) {
+          rejectFn(err);
+        }
+      }).catch(rejectFn);
     } else {
       import("node:child_process").then(({ exec }) => {
         exec(process.platform === "darwin" ? "open -a Obsidian" : "obsidian", (err) => (err ? rejectFn(err) : resolveFn()));

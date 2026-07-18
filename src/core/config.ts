@@ -76,9 +76,15 @@ export async function loadConfig(): Promise<MndConfig> {
   if (_config) return _config;
 
   if (!_migrationsRan && existsSync(CONFIG_PATH)) {
-    const { runConfigMigrations } = await import("./migrations.js");
-    await runConfigMigrations();
-    _migrationsRan = true;
+    try {
+      const { runConfigMigrations } = await import("./migrations.js");
+      await runConfigMigrations();
+      _migrationsRan = true;
+    } catch (e: any) {
+      console.error(`\n[FATAL] Config migration failed: ${e.message}`);
+      console.error(`Please fix or backup ${CONFIG_PATH} manually.`);
+      process.exit(1);
+    }
   }
 
   if (!existsSync(CONFIG_PATH)) {

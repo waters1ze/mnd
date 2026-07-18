@@ -3,10 +3,23 @@ import { join } from "node:path";
 import { getAppDataDir } from "../src/core/paths.js";
 import { writeFile, readFile, rm } from "node:fs/promises";
 import YAML from "yaml";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+
+const tempDir = mkdtempSync(join(tmpdir(), "mnd-test-config-"));
+jest.mock("../src/core/paths.js", () => ({
+  getAppDataDir: () => tempDir,
+  getTempDir: () => tempDir
+}));
 
 describe("Config V1 -> V2 Migration", () => {
   const configPath = join(getAppDataDir(), "config.yaml");
+
+  afterAll(() => {
+    if (existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 
   afterEach(async () => {
     if (existsSync(configPath)) {
@@ -107,8 +120,8 @@ describe("Config V1 -> V2 Migration", () => {
     expect(rolledBack.version).toBe(1);
   });
 
-  it("should handle malformed config gracefully", async () => {
+  it("should throw error on malformed config", async () => {
     await writeFile(configPath, "INVALID YAML : [ : {", "utf-8");
-    await expect(runConfigMigrations()).resolves.toBeUndefined();
+    await expect(runConfigMigrations()).rejects.toThrow(/Malformed YAML/);
   });
 });

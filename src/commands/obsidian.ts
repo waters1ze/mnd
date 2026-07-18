@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { text, confirm, select } from "@clack/prompts";
 import { loadConfig, saveConfig, updateConfigField, resolveVaultPath } from "../core/config.js";
-import { getRegisteredVaultId, registerVaultSafely, openRegisteredVault, launchObsidianApp } from "../integrations/obsidian.js";
+import { getRegisteredVaultId, registerVaultSafely, openRegisteredVault, launchObsidianApp, normalizeObsidianVaultInput } from "../integrations/obsidian.js";
 import { writeFileSync, existsSync } from "node:fs";
 import { mkdir, cp, rm, readdir, stat, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
@@ -31,7 +31,9 @@ async function ensureVaultStructure(vaultPath: string): Promise<void> {
     try {
       // Use wx flag for exclusive creation to prevent accidental overwrites
       writeFileSync(homePath, content, { encoding: "utf-8", flag: "wx" });
-    } catch {}
+    } catch (err: any) {
+      if (err.code !== "EEXIST") throw err;
+    }
   }
 }
 
@@ -48,14 +50,19 @@ async function performSetup(cfg: any) {
 
   if (typeof newPath !== "string") return; // cancelled
 
-  let targetPath = newPath.trim().replace(/^["']|["']$/g, '');
-  if (targetPath.startsWith('~')) {
-    targetPath = join(homedir(), targetPath.slice(1));
+  let targetPath: string;
+  try {
+    targetPath = normalizeObsidianVaultInput(newPath);
+  } catch (err: any) {
+    console.log(chalk.red(err.message));
+    return;
   }
+
+  let choice: string | symbol = "empty";
 
   // Handle conflicting nonempty vault logic if moving from an old path
   if (cfg.vault_path && targetPath !== cfg.vault_path && existsSync(cfg.vault_path)) {
-    const choice = await select({
+    choice = await select({
       message: `Vault already exists at ${cfg.vault_path}. How do you want to handle this?`,
       options: [
         { value: "copy", label: `Copy existing vault to ${targetPath}` },
@@ -68,13 +75,35 @@ async function performSetup(cfg: any) {
       console.log(chalk.gray("Setup cancelled."));
       return;
     }
+  } else if (existsSync(targetPath)) {
+    import("node:fs").then(({ readdirSync }) => {
+      const files = readdirSync(targetPath);
+      if (files.length > 0 && !files.includes(".obsidian")) {
+         console.log(chalk.yellow(`Warning: ${targetPath} is not empty and does not look like an existing vault.`));
+         console.log(chalk.yellow(`MND will create folders inside it, but will not delete your files.`));
+      }
+    });
+  }
 
-    if (choice === "copy") {
-      console.log(chalk.gray(`Copying vault to ${targetPath}...`));
-      
-      const stagingPath = `${targetPath}.staging.${Date.now()}`;
-      
+  console.log(chalk.white(`\nThe following will be created in ${targetPath}:`));
+  console.log(chalk.gray("• .obsidian/\n• Home.md\n• Projects/\n• Assets/\n• Global_Rules/\n• Styles/\n• Skills/\n"));
+
+  const init = await confirm({ message: "Initialize?", initialValue: true });
+  if (!init) {
+    console.log(chalk.gray("Setup cancelled."));
+    return;
+  }
+
+  if (choice === "copy" && cfg.vault_path) {
+    console.log(chalk.gray(`Copying vault to ${targetPath}...`));
+    const stagingPath = `${targetPath}.staging.${Date.now()}`;
+    let success = false;
+    
+    try {
       // Calculate source manifest
+      const { lstatSync, realpathSync } = await import("node:fs");
+      const sourceReal = realpathSync(cfg.vault_path);
+
       const getManifest = async (dir: string) => {
         const manifest: Record<string, string> = {};
         const walk = async (current: string, rel: string) => {
@@ -82,7 +111,20 @@ async function performSetup(cfg: any) {
           for (const f of files) {
             const p = join(current, f);
             const r = join(rel, f);
-            const st = await stat(p);
+            
+            const { lstat } = await import("node:fs/promises");
+            const st = await lstat(p);
+            
+            if (st.isSymbolicLink()) {
+              throw new Error(`Symlink detected at ${p}. Symlinks are not supported in vaults.`);
+            }
+            
+            // Check boundary escape (junctions or hardlinks)
+            const pReal = realpathSync(p);
+            if (!pReal.startsWith(sourceReal) && dir === cfg.vault_path) {
+                throw new Error(`File escaped vault boundaries: ${pReal}`);
+            }
+
             if (st.isDirectory()) {
               await walk(p, r);
             } else {
@@ -112,38 +154,25 @@ async function performSetup(cfg: any) {
       }
 
       if (mismatch || Object.keys(sourceManifest).length !== Object.keys(stagingManifest).length) {
-         console.log(chalk.red(`✗ Copy verification failed (hash mismatch). Aborting.`));
-         await rm(stagingPath, { recursive: true, force: true });
-         return;
+         throw new Error(`Copy verification failed (hash mismatch).`);
       }
       
-      // Atomic promotion (only works if target doesn't exist, which we assume if it's new)
+      // Atomic promotion
       if (existsSync(targetPath)) {
-        console.log(chalk.yellow(`Target ${targetPath} already exists. Cannot safely copy over non-empty directory.`));
-        await rm(stagingPath, { recursive: true, force: true });
-        return;
+        throw new Error(`Target ${targetPath} already exists. Cannot safely copy over non-empty directory.`);
       }
       
       await rename(stagingPath, targetPath);
+      success = true;
       console.log(chalk.green("✓ Vault safely copied and verified."));
-    }
-  } else if (existsSync(targetPath)) {
-    import("node:fs").then(({ readdirSync }) => {
-      const files = readdirSync(targetPath);
-      if (files.length > 0 && !files.includes(".obsidian")) {
-         console.log(chalk.yellow(`Warning: ${targetPath} is not empty and does not look like an existing vault.`));
-         console.log(chalk.yellow(`MND will create folders inside it, but will not delete your files.`));
+    } catch (err: any) {
+      console.log(chalk.red(`✗ Copy failed: ${err.message}`));
+      return;
+    } finally {
+      if (!success && existsSync(stagingPath)) {
+        await rm(stagingPath, { recursive: true, force: true }).catch(() => {});
       }
-    });
-  }
-
-  console.log(chalk.white(`\nThe following will be created in ${targetPath}:`));
-  console.log(chalk.gray("• .obsidian/\n• Home.md\n• Projects/\n• Assets/\n• Global_Rules/\n• Styles/\n• Skills/\n"));
-
-  const init = await confirm({ message: "Initialize?", initialValue: true });
-  if (!init) {
-    console.log(chalk.gray("Setup cancelled."));
-    return;
+    }
   }
 
   await ensureVaultStructure(targetPath);
@@ -243,8 +272,14 @@ export const handleObsidian: CommandHandler = async (args, rawInput) => {
   // Standard run (either /obsidian or /obidian)
   let vaultId = cfg.obsidian?.vault_id;
   
-  // If no ID or we want to double check
-  if (!vaultId) {
+  // Verify cached vaultId is still registered, otherwise fetch actual
+  if (vaultId) {
+    const actualId = await getRegisteredVaultId(vaultPath);
+    if (actualId !== vaultId) {
+      vaultId = actualId;
+      await updateConfigField(c => { if(c.obsidian) c.obsidian.vault_id = vaultId; });
+    }
+  } else {
     const id = await getRegisteredVaultId(vaultPath);
     if (id) {
       vaultId = id;

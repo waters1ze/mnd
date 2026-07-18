@@ -22,19 +22,25 @@ export async function runConfigMigrations(): Promise<void> {
   let parsed: any;
   try {
     parsed = YAML.parse(raw);
-  } catch {
-    return; // Cannot migrate unparseable config
+  } catch (err: any) {
+    throw new Error(`Malformed YAML: ${err.message}`);
   }
 
-  const currentVersion = parsed.version || 0;
-  if (currentVersion === LATEST_CONFIG_VERSION) return;
+  const currentVersion = parsed?.version || 0;
+  const requiresLegacyRepair = parsed?.connections?.antigravity_cli_path !== undefined;
+
+  if (currentVersion === LATEST_CONFIG_VERSION && !requiresLegacyRepair) return;
 
   if (currentVersion > LATEST_CONFIG_VERSION) {
     console.log(chalk.red(`\n[!] Config version ${currentVersion} is newer than supported version ${LATEST_CONFIG_VERSION}. Please update MND.`));
     process.exit(1);
   }
 
-  console.log(chalk.yellow(`\n[MIGRATION] Upgrading config from v${currentVersion} to v${LATEST_CONFIG_VERSION}...`));
+  if (currentVersion !== LATEST_CONFIG_VERSION) {
+    console.log(chalk.yellow(`\n[MIGRATION] Upgrading config from v${currentVersion} to v${LATEST_CONFIG_VERSION}...`));
+  } else {
+    console.log(chalk.yellow(`\n[MIGRATION] Repairing legacy fields in config v${currentVersion}...`));
+  }
   const backupDir = join(getAppDataDir(), "backups");
   const backupPath = await backupFile(configPath, backupDir, `pre-migration-v${currentVersion}`);
 
