@@ -1,0 +1,24 @@
+{
+  "gates": [
+    { "id": "G01", "name": "Workspace/build architecture" },
+    { "id": "G02", "name": "First-run folder picker" },
+    { "id": "G03", "name": "Destination classification" },
+    { "id": "G04", "name": "Vault initialization safety" },
+    { "id": "G05", "name": "Obsidian-compatible structure" },
+    { "id": "G06", "name": "Markdown/frontmatter model" },
+    { "id": "G07", "name": "Wikilink graph indexer" },
+    { "id": "G08", "name": "SQLite rebuildability" },
+    { "id": "G09", "name": "Interactive graph UI" },
+    { "id": "G10", "name": "Hover/click/double-click" },
+    { "id": "G11", "name": "Internal viewers" },
+    { "id": "G12", "name": "File explorer" },
+    { "id": "G13", "name": "Note editor and atomic save" },
+    { "id": "G14", "name": "External watcher/conflicts" },
+    { "id": "G15", "name": "Search/filters/backlinks" },
+    { "id": "G16", "name": "Obsidian opening compatibility" },
+    { "id": "G17", "name": "Obsidian Bases preservation" },
+    { "id": "G18", "name": "MND CLI /graph" },
+    { "id": "G19", "name": "Vault switching/safe copy" },
+    { "id": "G20", "name": "Security/performance/release" }
+  ]
+}

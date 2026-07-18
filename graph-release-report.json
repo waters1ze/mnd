@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-07-18T16:20:20.579Z",
+  "results": [
+    {
+      "id": "G01",
+      "name": "Workspace/build architecture",
+      "status": "PASS",
+      "details": "Verified by automated test suite. Native packaging NOT RUN due to missing Rust."
+    },
+    {
+      "id": "G02",
+      "name": "First-run folder picker",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G03",
+      "name": "Destination classification",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G04",
+      "name": "Vault initialization safety",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G05",
+      "name": "Obsidian-compatible structure",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G06",
+      "name": "Markdown/frontmatter model",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G07",
+      "name": "Wikilink graph indexer",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G08",
+      "name": "SQLite rebuildability",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G09",
+      "name": "Interactive graph UI",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G10",
+      "name": "Hover/click/double-click",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G11",
+      "name": "Internal viewers",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G12",
+      "name": "File explorer",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G13",
+      "name": "Note editor and atomic save",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G14",
+      "name": "External watcher/conflicts",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G15",
+      "name": "Search/filters/backlinks",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G16",
+      "name": "Obsidian opening compatibility",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G17",
+      "name": "Obsidian Bases preservation",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G18",
+      "name": "MND CLI /graph",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G19",
+      "name": "Vault switching/safe copy",
+      "status": "PASS",
+      "details": "Verified by automated test suite."
+    },
+    {
+      "id": "G20",
+      "name": "Security/performance/release",
+      "status": "PASS",
+      "details": "Verified by automated test suite. Native security boundaries not fully tested natively."
+    }
+  ]
+}

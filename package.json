@@ -7,6 +7,9 @@
   "bin": {
     "mnd": "dist/index.js"
   },
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -15,7 +18,15 @@
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\"test/(levenshtein|box|projectState|slugify|persistentProcess|router|vault)\\.test\\.ts\"",
     "test:smoke": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\"test/pythonSidecar\\.smoke\\.test\\.ts\"",
     "lint": "tsc --noEmit",
-    "release:verify": "node scripts/verify-release-gates.mjs"
+    "release:verify": "node scripts/verify-release-gates.mjs",
+    "graph:install": "npm install",
+    "graph:lint": "npm -w apps/mnd-graph run lint",
+    "graph:typecheck": "npm -w apps/mnd-graph run build",
+    "graph:test": "npm -w apps/mnd-graph run test",
+    "graph:build": "npm -w apps/mnd-graph run build",
+    "graph:e2e": "npm -w apps/mnd-graph run e2e",
+    "graph:verify": "node apps/mnd-graph/scripts/verify-release-gates.mjs",
+    "graph:tauri:build": "npm -w apps/mnd-graph run tauri build"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.0",
