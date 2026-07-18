@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { spawnSync, execSync } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 console.log("Starting release verification...");
@@ -11,16 +11,18 @@ const report = {
   commands: []
 };
 
-function run(cmd, args, opts = {}) {
+function run(cmd, opts = {}) {
   const start = Date.now();
   console.log(`Running: ${cmd}`);
   try {
-    const out = execSync(cmd, { stdio: 'pipe', encoding: 'utf8', ...opts });
+    const cp = spawnSync(cmd, { shell: true, encoding: 'utf8', ...opts });
+    const output = (cp.stdout || '') + '\n' + (cp.stderr || '');
+    if (cp.status !== 0) throw { status: cp.status, output };
     report.commands.push({ cmd, exitCode: 0, duration: Date.now() - start });
-    return { success: true, output: out };
+    return { success: true, output };
   } catch (err) {
     report.commands.push({ cmd, exitCode: err.status ?? 1, duration: Date.now() - start });
-    return { success: false, output: err.stdout + err.stderr };
+    return { success: false, output: err.output || (err.stdout + "\n" + err.stderr) };
   }
 }
 
@@ -53,7 +55,7 @@ if (!lint.success) {
 }
 
 // 5. npm test
-const test = run('npm test -- --runInBand --verbose 2>&1');
+const test = run('npm test -- --runInBand --verbose');
 if (!test.success) {
   console.error("Tests failed!", test.output);
   process.exit(1);
