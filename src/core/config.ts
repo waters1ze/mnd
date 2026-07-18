@@ -70,8 +70,16 @@ export async function configExists(): Promise<boolean> {
   return existsSync(CONFIG_PATH);
 }
 
+let _migrationsRan = false;
+
 export async function loadConfig(): Promise<MndConfig> {
   if (_config) return _config;
+
+  if (!_migrationsRan && existsSync(CONFIG_PATH)) {
+    const { runConfigMigrations } = await import("./migrations.js");
+    await runConfigMigrations();
+    _migrationsRan = true;
+  }
 
   if (!existsSync(CONFIG_PATH)) {
     await mkdir(CONFIG_DIR, { recursive: true });

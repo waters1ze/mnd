@@ -55,8 +55,10 @@ export async function promptInput(promptText: string, initialInput: string = "")
       })
     );
 
-    unmount.waitUntilExit().then(() => {
-      resolve(result);
+    import("../ui/tty.js").then(({ TtyOwnershipCoordinator }) => {
+      TtyOwnershipCoordinator.releaseInk(unmount.waitUntilExit()).then(() => {
+        resolve(result);
+      });
     });
   });
 }

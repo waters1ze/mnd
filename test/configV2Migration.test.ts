@@ -73,4 +73,42 @@ describe("Config V1 -> V2 Migration", () => {
     expect(migrated.version).toBe(2);
     expect(migrated.connections.antigravity.cached_executable_path).toBe("C:\\path\\to\\antigravity2.exe");
   });
+
+  it("should preserve unknown fields", async () => {
+    const v1Config = {
+      version: 1,
+      profile: "hybrid",
+      vault_path: "C:\\Vault",
+      some_unknown_field: { keep_me: true },
+      models: { hybrid: { image_gen: {} }, local: { image_gen: {} } },
+      connections: { antigravity_cli_path: "antigravity" },
+    };
+    await writeFile(configPath, YAML.stringify(v1Config), "utf-8");
+    await runConfigMigrations();
+    const migratedRaw = await readFile(configPath, "utf-8");
+    const migrated = YAML.parse(migratedRaw);
+    expect(migrated.some_unknown_field).toBeDefined();
+    expect(migrated.some_unknown_field.keep_me).toBe(true);
+    expect(migrated.connections.antigravity.cached_executable_path).toBe("antigravity");
+  });
+
+  it("should rollback on verification failure", async () => {
+    const v1Config = {
+      version: 1,
+      profile: "hybrid",
+      vault_path: 12345, // invalid type, should trigger schema check failure
+      models: { hybrid: { image_gen: {} }, local: { image_gen: {} } },
+      connections: { antigravity_cli_path: "antigravity" },
+    };
+    await writeFile(configPath, YAML.stringify(v1Config), "utf-8");
+    await expect(runConfigMigrations()).rejects.toThrow(/Invalid vault_path/);
+    const rolledBackRaw = await readFile(configPath, "utf-8");
+    const rolledBack = YAML.parse(rolledBackRaw);
+    expect(rolledBack.version).toBe(1);
+  });
+
+  it("should handle malformed config gracefully", async () => {
+    await writeFile(configPath, "INVALID YAML : [ : {", "utf-8");
+    await expect(runConfigMigrations()).resolves.toBeUndefined();
+  });
 });

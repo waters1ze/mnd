@@ -79,9 +79,6 @@ async function main(): Promise<void> {
     await runSetupWizard();
   }
 
-  const { runConfigMigrations } = await import("./core/migrations.js");
-  await runConfigMigrations();
-
   const cfg = await loadConfig();
   verifyModelConsistency();
   const vaultPath = resolveVaultPath(cfg);

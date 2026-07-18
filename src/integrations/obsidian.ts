@@ -176,6 +176,14 @@ export function findObsidianExecutable(): string | null {
   return null;
 }
 
+export function getWindowsLauncher(uri: string): { exe: string, args: string[] } {
+  const obsidianExe = findObsidianExecutable();
+  if (obsidianExe) {
+    return { exe: obsidianExe, args: [uri] };
+  }
+  return { exe: "rundll32.exe", args: ["url.dll,FileProtocolHandler", uri] };
+}
+
 export function openRegisteredVault(vaultId: string, homeNote: string = "Home"): Promise<void> {
   return new Promise((resolveFn, rejectFn) => {
     const uriObj = new URL("obsidian://open");
@@ -186,7 +194,8 @@ export function openRegisteredVault(vaultId: string, homeNote: string = "Home"):
     import("node:child_process").then(({ spawn }) => {
       let proc;
       if (process.platform === "win32") {
-        proc = spawn("explorer.exe", [uri], { detached: true, stdio: "ignore", shell: false });
+        const launcher = getWindowsLauncher(uri);
+        proc = spawn(launcher.exe, launcher.args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
       } else if (process.platform === "darwin") {
         proc = spawn("open", [uri], { detached: true, stdio: "ignore" });
       } else {
@@ -201,15 +210,9 @@ export function openRegisteredVault(vaultId: string, homeNote: string = "Home"):
 export function launchObsidianApp(): Promise<void> {
   return new Promise((resolveFn, rejectFn) => {
     if (process.platform === "win32") {
-      const exe = findObsidianExecutable();
-      if (exe) {
-        const proc = spawn(exe, [], { detached: true, stdio: "ignore" });
-        proc.unref();
-        resolveFn();
-        return;
-      }
       import("node:child_process").then(({ spawn }) => {
-        const proc = spawn("explorer.exe", ["obsidian://"], { detached: true, stdio: "ignore", shell: false });
+        const launcher = getWindowsLauncher("obsidian://");
+        const proc = spawn(launcher.exe, launcher.args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
         proc.unref();
         resolveFn();
       });
