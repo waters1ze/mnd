@@ -2,7 +2,7 @@
 import { stat, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, relative } from "node:path";
-import { globSync } from "fs" // Actually let's use a recursive readdir
+// Removed globSync
 import { readdirSync, statSync } from "node:fs";
 import type { SyncManifest, SyncPlan, SyncEntry, SyncActionType, SyncPlanAction } from "./types.js";
 import { isFileInScope, type SyncScopeOptions } from "./policy.js";

@@ -11,10 +11,11 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "pretest": "npm run build",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit",
-    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --testPathPattern=\"test/(levenshtein|box|projectState|slugify|persistentProcess|router|vault)\\.test\\.ts\"",
-    "test:smoke": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --testPathPattern=\"test/pythonSidecar\\.smoke\\.test\\.ts\"",
-    "lint": "tsc --noEmit"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\"test/(levenshtein|box|projectState|slugify|persistentProcess|router|vault)\\.test\\.ts\"",
+    "test:smoke": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\"test/pythonSidecar\\.smoke\\.test\\.ts\"",
+    "lint": "tsc --noEmit",
+    "release:verify": "node scripts/verify-release-gates.mjs"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.0",

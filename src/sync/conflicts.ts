@@ -64,5 +64,7 @@ export async function resolveConflict(
         plan.actions.push({ type: "skip", entry, reason: "Keep local untracked" });
       }
       break;
+    default:
+      throw new Error("Unknown conflict resolution strategy");
   }
 }

@@ -138,6 +138,15 @@ async function main(): Promise<void> {
   registerSyncCommands();
   registerUpdateCommands();
 
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log(chalk.gray([
+      "Commands: config, obsidian, open, create, sort, analyze, prompt,",
+      "          approve, fix, show history, full new, full show, thumbnail,",
+      "          refactor, rules review, status, backup, restore, login, logout, account"
+    ].join("\n")));
+    return;
+  }
+
   await startRepl();
 }
 

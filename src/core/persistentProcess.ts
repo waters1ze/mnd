@@ -36,6 +36,7 @@ export class PersistentProcess {
   private currentItem: QueueItem | null = null;
   private currentItemStartedAt = 0;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private readyTimeoutId: NodeJS.Timeout | null = null;
 
   constructor(public readonly opts: PersistentProcessOptions) {}
 
@@ -92,6 +93,7 @@ export class PersistentProcess {
               this.stdoutBuffer = this.stdoutBuffer.slice(afterMatch);
             }
             this.state = "transport_ready";
+            if (this.readyTimeoutId) clearTimeout(this.readyTimeoutId);
             this.startHealthCheck();
             resolve();
           }
@@ -133,7 +135,7 @@ export class PersistentProcess {
       }
 
       // Timeout for readiness
-      setTimeout(() => {
+      this.readyTimeoutId = setTimeout(() => {
         if (this.state === "starting") {
           reject(new Error(`[${this.name}] timed out waiting for ready pattern`));
         }
@@ -251,6 +253,10 @@ export class PersistentProcess {
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
+    }
+    if (this.readyTimeoutId) {
+      clearTimeout(this.readyTimeoutId);
+      this.readyTimeoutId = null;
     }
     if (this.child) {
       terminateOwnedProcessTree(this.child, { force: true }).catch(() => {});

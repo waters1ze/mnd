@@ -4,10 +4,9 @@ import { existsSync } from "node:fs";
 
 describe("ESM Smoke Test", () => {
   it("should execute dist/index.js --help without ESM errors", () => {
-    const indexPath = resolve(__dirname, "../dist/index.js");
+    const indexPath = resolve(process.cwd(), "dist/index.js");
     if (!existsSync(indexPath)) {
-      console.warn("Skipping test because dist/index.js does not exist. Please run build first.");
-      return;
+      throw new Error("dist/index.js does not exist. Please run build first.");
     }
 
     // Run the compiled CLI asking for help
@@ -17,17 +16,14 @@ describe("ESM Smoke Test", () => {
       expect(output).not.toContain("ERR_REQUIRE_ESM");
       expect(output).not.toContain("require is not defined");
     } catch (err: any) {
-      const allOutput = (err.stdout?.toString() || "") + (err.stderr?.toString() || "");
-      expect(allOutput).not.toContain("ERR_REQUIRE_ESM");
-      expect(allOutput).not.toContain("require is not defined");
+      throw new Error(`Child process failed: ${err.message}`);
     }
   });
 
   it("should be able to import dist/integrations/obsidian.js and use normalizeObsidianVaultInput", async () => {
-    const modulePath = resolve(__dirname, "../dist/integrations/obsidian.js");
+    const modulePath = resolve(process.cwd(), "dist/integrations/obsidian.js");
     if (!existsSync(modulePath)) {
-      console.warn("Skipping test because dist/integrations/obsidian.js does not exist.");
-      return;
+      throw new Error("dist/integrations/obsidian.js does not exist.");
     }
 
     const fileUrl = new URL(`file:///${modulePath.replace(/\\/g, "/")}`).href;

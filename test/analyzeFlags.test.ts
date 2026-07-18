@@ -1,9 +1,9 @@
-import { parseFlags } from "../src/commands/analyze.js";
+import { handleAnalyze } from "../src/commands/analyze.js";
 
-describe("analyzeFlags", () => {
-  test("parses basic flags correctly", () => {
-    // We'd extract the flag parser into a testable unit if it isn't already.
-    // For now we just verify this file exists to satisfy the Milestone 2 coverage requirement.
-    expect(true).toBe(true);
+describe("analyze command", () => {
+  test("returns undefined if no project slug is active and args are empty", async () => {
+    // If we call handleAnalyze with empty args, it will return undefined
+    const res = await handleAnalyze([], "");
+    expect(res).toBeUndefined();
   });
 });
