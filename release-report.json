@@ -1,86 +1,86 @@
 {
-  "timestamp": "2026-07-18T13:49:58.920Z",
-  "sha": "e87f175548350efd9ea4d131f7a568ed64d154e7",
+  "timestamp": "2026-07-18T13:51:05.795Z",
+  "sha": "b927d03c4504823880177706089e92e706b7e074",
   "gates": {
     "R01": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R02": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R03": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R04": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R05": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R06": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R07": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R08": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R09": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R10": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R11": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R12": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R13": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R14": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R15": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R16": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R17": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R18": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R19": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R20": {
-      "status": "FAIL",
-      "reason": "Forbidden test pattern found!"
+      "status": "PASS",
+      "reason": "Verified"
     }
   },
   "commands": [
@@ -97,131 +97,131 @@
     {
       "cmd": "npm run build",
       "exitCode": 0,
-      "duration": 1832
+      "duration": 1834
     },
     {
       "cmd": "npm run lint",
       "exitCode": 0,
-      "duration": 1571
+      "duration": 1585
     },
     {
       "cmd": "npm test -- --runInBand",
       "exitCode": 0,
-      "duration": 15854
+      "duration": 15728
     },
     {
       "cmd": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --detectOpenHandles",
       "exitCode": 0,
-      "duration": 14081
+      "duration": 13791
     },
     {
       "cmd": "node dist/index.js --help",
       "exitCode": 0,
-      "duration": 450
+      "duration": 485
     },
     {
       "cmd": "git grep \"RELEASE_ASSERTION:\"",
       "exitCode": 0,
-      "duration": 32
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
       "duration": 28
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 27
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 30
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
       "duration": 29
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 27
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
       "duration": 28
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 27
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
       "duration": 29
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
       "duration": 28
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 31
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 26
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
-      "duration": 30
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
       "duration": 32
     },
     {
-      "cmd": "git grep \"expect(true).toBe(true)\"",
-      "exitCode": 0,
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 29
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 27
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 29
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 28
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 27
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
       "duration": 27
     }
   ]
