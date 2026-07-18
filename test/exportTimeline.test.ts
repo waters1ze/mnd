@@ -6,29 +6,24 @@ jest.mock("../src/core/pythonSidecarClient.js", () => ({
   sidecarExportFcpxml: jest.fn().mockResolvedValue("/path/to/exported.fcpxml")
 }));
 
+jest.mock("../src/core/sourceManifest.js", () => ({
+  hashFileStream: jest.fn()
+}));
+
 jest.mock("../src/core/projectState.js", () => ({
   markStepDone: jest.fn(),
   saveProjectState: jest.fn()
 }));
 
 jest.mock("node:fs", () => ({
-  existsSync: jest.fn(),
-  createReadStream: jest.fn()
+  existsSync: jest.fn()
 }));
 
 jest.mock("node:fs/promises", () => ({
   stat: jest.fn().mockResolvedValue({ size: 1000 })
 }));
 
-const mockReadStream = (data: Buffer) => {
-  return {
-    on: jest.fn((event: string, cb: Function) => {
-      if (event === "data") cb(data);
-      if (event === "end") cb();
-      return this;
-    })
-  };
-};
+import { hashFileStream } from "../src/core/sourceManifest.js";
 
 describe("exportTimeline", () => {
   const dummyPlan = {
@@ -46,27 +41,27 @@ describe("exportTimeline", () => {
     jest.clearAllMocks();
   });
 
-  it("throws if file does not exist", async () => {
+  it("RELEASE_ASSERTION: R04-SOURCE-INTEGRITY throws if file does not exist", async () => {
     (existsSync as jest.Mock).mockReturnValue(false);
     await expect(exportTimelineStep(dummyPlan, {} as any, "/vault")).rejects.toThrow(/missing or offline/);
   });
 
-  it("throws if sourceManifest is missing entry", async () => {
+  it("RELEASE_ASSERTION: R04-SOURCE-INTEGRITY throws if sourceManifest is missing entry", async () => {
     (existsSync as jest.Mock).mockReturnValue(true);
     await expect(exportTimelineStep(dummyPlan, { sourceManifest: {} } as any, "/vault")).rejects.toThrow(/missing integrity metadata/);
   });
 
-  it("exports successfully if SHA-256 matches", async () => {
+  it("RELEASE_ASSERTION: R04-SOURCE-INTEGRITY exports successfully if SHA-256 matches", async () => {
     (existsSync as jest.Mock).mockReturnValue(true);
     const crypto = require("node:crypto");
     const data = Buffer.from("dummy video content");
     const hash = crypto.createHash("sha256").update(data).digest("hex");
     
-    (createReadStream as jest.Mock).mockReturnValue(mockReadStream(data));
+    (hashFileStream as jest.Mock).mockResolvedValue(hash);
     
     const dummyState: any = {
       sourceManifest: {
-        "raw/video.mp4": { hash: hash, size: 1000, mtime: "2023-01-01" }
+        "raw/video.mp4": { hash: hash, size: 1000, algorithm: "sha256", mtime: "2023-01-01" }
       },
       exports: []
     };
@@ -74,18 +69,19 @@ describe("exportTimeline", () => {
     expect(result).toBe("/path/to/exported.fcpxml");
   });
 
-  it("throws if SHA-256 does not match", async () => {
+  it("RELEASE_ASSERTION: R04-SOURCE-INTEGRITY throws if SHA-256 does not match", async () => {
     (existsSync as jest.Mock).mockReturnValue(true);
     const crypto = require("node:crypto");
     const data = Buffer.from("modified content");
+    const hash = crypto.createHash("sha256").update(data).digest("hex");
     
-    (createReadStream as jest.Mock).mockReturnValue(mockReadStream(data));
+    (hashFileStream as jest.Mock).mockResolvedValue(hash);
     
     await expect(exportTimelineStep(
       dummyPlan,
-      { sourceManifest: { "raw/video.mp4": { hash: "abc123expectedhash", size: 1000, mtime: "2023-01-01" } } } as any,
+      { sourceManifest: { "raw/video.mp4": { hash: "abc123expectedhash", size: 1000, algorithm: "sha256", mtime: "2023-01-01" } } } as any,
       "/vault"
-    )).rejects.toThrow(/SHA-256 hash mismatch/);
+    )).rejects.toThrow(/SHA256 hash mismatch/);
   });
 
   it("migrates MD5 if matched", async () => {
@@ -94,11 +90,11 @@ describe("exportTimeline", () => {
     const data = Buffer.from("dummy video content");
     const md5Hash = crypto.createHash("md5").update(data).digest("hex");
     
-    (createReadStream as jest.Mock).mockReturnValue(mockReadStream(data));
+    (hashFileStream as jest.Mock).mockResolvedValue(md5Hash);
     
     const dummyState: any = {
       sourceManifest: {
-        "raw/video.mp4": { hash: md5Hash, size: 1000, mtime: "2023-01-01" }
+        "raw/video.mp4": { hash: md5Hash, size: 1000, algorithm: "md5", mtime: "2023-01-01" }
       },
       exports: []
     };
@@ -106,17 +102,18 @@ describe("exportTimeline", () => {
     expect(result).toBe("/path/to/exported.fcpxml");
   });
 
-  it("throws if MD5 does not match", async () => {
+  it("RELEASE_ASSERTION: R04-SOURCE-INTEGRITY throws if MD5 does not match", async () => {
     (existsSync as jest.Mock).mockReturnValue(true);
     const crypto = require("node:crypto");
     const data = Buffer.from("modified content");
     const expectedMd5Hash = crypto.createHash("md5").update("original content").digest("hex");
+    const currentHash = crypto.createHash("md5").update(data).digest("hex");
     
-    (createReadStream as jest.Mock).mockReturnValue(mockReadStream(data));
+    (hashFileStream as jest.Mock).mockResolvedValue(currentHash);
     
     const dummyState: any = {
       sourceManifest: {
-        "raw/video.mp4": { hash: expectedMd5Hash, size: 1000, mtime: "2023-01-01" }
+        "raw/video.mp4": { hash: expectedMd5Hash, size: 1000, algorithm: "md5", mtime: "2023-01-01" }
       },
       exports: []
     };

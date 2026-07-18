@@ -1,5 +1,14 @@
 // src/types/pipeline.ts
 
+export type SourceManifestEntry = {
+  sourceId: string;
+  canonicalRelativePath: string;
+  algorithm: "sha256" | "md5";
+  hash: string;
+  size: number | null;
+  mtime: string | null;
+};
+
 export interface TranscriptSegment {
   start: number; // seconds from start
   end: number;   // seconds from start
@@ -89,7 +98,7 @@ export interface ProjectState {
   version: number;
   projectSlug: string;
   runId: string | null;
-  sourceManifest: Record<string, { hash: string; size: number; mtime: string } | string>; // legacy is string, new is object
+  sourceManifest: Record<string, SourceManifestEntry | string>; // legacy is string, new is object
   activeProfile: string;
   createdAt: string;
   updatedAt: string;

@@ -45,15 +45,21 @@ describe("Antigravity Client Operations", () => {
     expect(res.type).toBe("video");
   });
 
-  it("should refuse malformed JSON as success for generateThumbnail", async () => {
+  it("RELEASE_ASSERTION: R09-ANTIGRAVITY-OPERATIONS should refuse malformed JSON as success for generateThumbnail", async () => {
     mockSetResponse("{ malformed json");
 
     await expect(generateThumbnail({ title: "A", style: "B" })).rejects.toThrow("Invalid JSON response from Antigravity");
   });
 
-  it("should refuse valid JSON missing required fields for generateThumbnail", async () => {
+  it("RELEASE_ASSERTION: R09-ANTIGRAVITY-OPERATIONS should refuse valid JSON missing required fields for generateThumbnail", async () => {
     mockSetResponse(JSON.stringify({ someField: "test" })); // missing outputPath
 
     await expect(generateThumbnail({ title: "A", style: "B" })).rejects.toThrow("Invalid response format from Antigravity: missing outputPath");
+  });
+  
+  it("RELEASE_ASSERTION: R09-ANTIGRAVITY-OPERATIONS should accept valid JSON for generateThumbnail", async () => {
+    mockSetResponse(JSON.stringify({ outputPath: "/valid/path.jpg" }));
+    const res = await generateThumbnail({ title: "A", style: "B" });
+    expect(res).toBe("/valid/path.jpg");
   });
 });

@@ -1,0 +1,125 @@
+{
+  "version": "1.0.0",
+  "gates": [
+    {
+      "id": "R01",
+      "name": "CONFIG MIGRATIONS",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R01-CONFIG-MIGRATIONS"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R02",
+      "name": "ESM AND NODE 20",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R02-ESM-NODE-20"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R03",
+      "name": "TERMINAL OWNERSHIP",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R03-TERMINAL-OWNERSHIP"],
+      "realExternalEvidenceRequired": true
+    },
+    {
+      "id": "R04",
+      "name": "SOURCE MEDIA INTEGRITY",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R04-SOURCE-INTEGRITY"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R05",
+      "name": "EDIT PLAN RUNTIME VALIDATION",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R05-PLAN-VALIDATION"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R06",
+      "name": "FCPXML AND DAVINCI",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R06-FCPXML-VALIDATION"],
+      "realExternalEvidenceRequired": true
+    },
+    {
+      "id": "R07",
+      "name": "TRUTHFUL DOCTOR",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R07-DOCTOR-TRUTHFUL"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R08",
+      "name": "ANTIGRAVITY DISCOVERY",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R09",
+      "name": "ANTIGRAVITY OPERATIONS",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R09-ANTIGRAVITY-OPERATIONS"],
+      "realExternalEvidenceRequired": true
+    },
+    {
+      "id": "R10",
+      "name": "PROCESS LIFECYCLE",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R10-PROCESS-LIFECYCLE"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R11",
+      "name": "OBSIDIAN SETUP",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R11-OBSIDIAN-SETUP"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R12",
+      "name": "OBSIDIAN REGISTRATION",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R12-OBSIDIAN-REGISTRATION"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R13",
+      "name": "OBSIDIAN OPEN",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R13-OBSIDIAN-OPEN"],
+      "realExternalEvidenceRequired": true
+    },
+    {
+      "id": "R14",
+      "name": "OBSIDIAN BASES",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R14-OBSIDIAN-BASES"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R15",
+      "name": "AI PROFILES",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R15-AI-PROFILES"],
+      "realExternalEvidenceRequired": true
+    },
+    {
+      "id": "R16",
+      "name": "GOOGLE LOGIN AND DRIVE",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R16-GOOGLE-DRIVE"],
+      "realExternalEvidenceRequired": true
+    },
+    {
+      "id": "R17",
+      "name": "TEST QUALITY",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R17-TEST-QUALITY"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R18",
+      "name": "OPEN HANDLES",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R18-OPEN-HANDLES"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R19",
+      "name": "BUILT CLI",
+      "requiredAssertionIds": ["RELEASE_ASSERTION: R19-BUILT-CLI"],
+      "realExternalEvidenceRequired": false
+    },
+    {
+      "id": "R20",
+      "name": "FINAL REPORT",
+      "requiredAssertionIds": [],
+      "realExternalEvidenceRequired": false
+    }
+  ]
+}

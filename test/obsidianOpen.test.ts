@@ -19,7 +19,7 @@ describe("obsidianOpen", () => {
     jest.clearAllMocks();
   });
 
-  it("opens registered vault with uri and verifies shell is false", async () => {
+  it("RELEASE_ASSERTION: R13-OBSIDIAN-OPEN opens registered vault with uri and verifies shell is false", async () => {
     await openRegisteredVault("abc-123", "Home.md");
     expect(spawn).toHaveBeenCalled();
     const args = (spawn as jest.Mock).mock.calls[0];
@@ -32,7 +32,7 @@ describe("obsidianOpen", () => {
     expect(uriString).toContain("file=Home.md");
   });
 
-  it("falls back to rundll32.exe when obsidian is not found", () => {
+  it("RELEASE_ASSERTION: R13-OBSIDIAN-OPEN falls back to rundll32.exe when obsidian is not found", () => {
     jest.spyOn(fs, "existsSync").mockReturnValue(false);
     const launcher = getWindowsLauncher("obsidian://test");
     expect(launcher.exe).toBe("rundll32.exe");
@@ -41,7 +41,7 @@ describe("obsidianOpen", () => {
     jest.restoreAllMocks();
   });
 
-  it("uses exact executable when obsidian is found", () => {
+  it("RELEASE_ASSERTION: R13-OBSIDIAN-OPEN uses exact executable when obsidian is found", () => {
     jest.spyOn(fs, "existsSync").mockReturnValue(true);
     const launcher = getWindowsLauncher("obsidian://test2");
     expect(launcher.exe).not.toBe("rundll32.exe");
@@ -50,7 +50,7 @@ describe("obsidianOpen", () => {
   });
 
 
-  it("safely builds Windows launcher args with special characters", () => {
+  it("RELEASE_ASSERTION: R13-OBSIDIAN-OPEN safely builds Windows launcher args with special characters", () => {
     const vaultId = "my vault & % #";
     const homeNote = 'home "note" with spaces & Cyrillic Привет';
     

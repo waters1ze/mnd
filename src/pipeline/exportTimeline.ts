@@ -10,6 +10,7 @@ import type { EditPlan, ProjectState } from "../types/pipeline.js";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { hashFileStream } from "../core/sourceManifest.js";
 
 export async function exportTimelineStep(
   editPlan: EditPlan,
@@ -45,6 +46,7 @@ export async function exportTimelineStep(
 
   const expectedHash = typeof sourceEntry === "string" ? sourceEntry : sourceEntry.hash;
   const expectedSize = typeof sourceEntry === "string" ? null : sourceEntry.size;
+  const expectedAlgorithm = typeof sourceEntry === "string" ? (expectedHash.length === 32 ? "md5" : "sha256") : sourceEntry.algorithm;
 
   const { stat } = await import("node:fs/promises");
   const fstat = await stat(editPlan.sourceVideoPath);
@@ -53,33 +55,12 @@ export async function exportTimelineStep(
      throw new Error(`Source video size mismatch. File has been modified. Expected size: ${expectedSize}, Current: ${fstat.size}. Recovery: replace with original file or create a new project.`);
   }
 
-  const { createReadStream } = await import("node:fs");
-  const currentSha256 = await new Promise<string>((resolve, reject) => {
-    const hash = createHash("sha256");
-    const stream = createReadStream(editPlan.sourceVideoPath);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
-    stream.on("error", reject);
-  });
+  const currentHash = await hashFileStream(editPlan.sourceVideoPath, expectedAlgorithm);
 
-  if (currentSha256 !== expectedHash) {
-    // If the hash is MD5 (32 hex chars), we migrate it and accept if it matches MD5
-    if (expectedHash.length === 32) {
-      const currentMd5 = await new Promise<string>((resolve, reject) => {
-        const hash = createHash("md5");
-        const stream = createReadStream(editPlan.sourceVideoPath);
-        stream.on("data", (chunk) => hash.update(chunk));
-        stream.on("end", () => resolve(hash.digest("hex")));
-        stream.on("error", reject);
-      });
-      if (currentMd5 !== expectedHash) {
-        throw new Error(`Source video MD5 hash mismatch. File has been modified since it was added to the project. Original: ${expectedHash}, Current: ${currentMd5}. Recovery: replace with original file or create a new project.`);
-      }
-      // Migrate it to SHA-256 for future checks (we don't save state here but could)
-    } else {
-      throw new Error(`Source video SHA-256 hash mismatch. File has been modified since it was added to the project. Original: ${expectedHash}, Current: ${currentSha256}. Recovery: replace with original file or create a new project.`);
-    }
+  if (currentHash !== expectedHash) {
+    throw new Error(`Source video ${expectedAlgorithm.toUpperCase()} hash mismatch. File has been modified since it was added to the project. Original: ${expectedHash}, Current: ${currentHash}. Recovery: replace with original file or create a new project.`);
   }
+  
   const outputPath = join(
     vaultPath,
     "Projects",

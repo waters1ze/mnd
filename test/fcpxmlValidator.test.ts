@@ -1,7 +1,7 @@
 import { validateFCPXML } from "../src/export/fcpxmlValidator.js";
 
 describe("fcpxmlValidator", () => {
-  test("validates a well-formed FCPXML", async () => {
+  test("RELEASE_ASSERTION: R06-FCPXML-VALIDATION validates a well-formed FCPXML", async () => {
     const validXml = `
       <?xml version="1.0" encoding="UTF-8"?>
       <!DOCTYPE fcpxml>

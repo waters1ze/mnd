@@ -1,7 +1,7 @@
 import { releaseInkStdin, TtyAdapter } from "../src/ui/tty.js";
 
 describe("TtyOwnershipCoordinator / releaseInkStdin", () => {
-  it("should release Ink and restore stdin state in exact order: waitUntilExit -> yield -> setRawMode(false) -> resume", async () => {
+  it("RELEASE_ASSERTION: R03-TERMINAL-OWNERSHIP should release Ink and restore stdin state in exact order: waitUntilExit -> yield -> setRawMode(false) -> resume", async () => {
     let rawModeState = true;
     let resumed = false;
     const executionOrder: string[] = [];
@@ -40,7 +40,7 @@ describe("TtyOwnershipCoordinator / releaseInkStdin", () => {
     expect(resumed).toBe(true);
   });
 
-  it("should still restore stdin if waitUntilExitPromise rejects", async () => {
+  it("RELEASE_ASSERTION: R03-TERMINAL-OWNERSHIP should still restore stdin if waitUntilExitPromise rejects", async () => {
     const mockAdapter: TtyAdapter = {
       isTTY: true,
       setRawMode: jest.fn(),

@@ -37,10 +37,7 @@ function walkDir(dir: string, baseDir: string, options: SyncScopeOptions, result
   return results;
 }
 
-async function computeMd5(filePath: string): Promise<string> {
-  const data = await readFile(filePath);
-  return createHash("md5").update(data).digest("hex");
-}
+import { hashFileStream } from "../core/sourceManifest.js";
 
 export async function createSyncPlan(
   localDir: string,
@@ -50,6 +47,11 @@ export async function createSyncPlan(
 ): Promise<SyncPlan> {
   const plan: SyncPlan = { actions: [], conflicts: [] };
   const entries = { ...manifest.entries };
+
+  // Validate Google Drive ID format
+  if (!/^[a-zA-Z0-9_-]{15,}$/.test(remoteFolderId)) {
+    throw new Error(`Invalid Google Drive Folder ID format: ${remoteFolderId}`);
+  }
 
   // 1. Scan Local Files
   const localFiles = walkDir(localDir, localDir, options);
@@ -101,7 +103,7 @@ export async function createSyncPlan(
     if (localExists) {
       if (!entry.lastSyncedHash || !entry.localMtime || entry.localMtime !== local.mtime) {
         // Need to check hash
-        const hash = await computeMd5(join(localDir, relPath));
+        const hash = await hashFileStream(join(localDir, relPath), "md5");
         local.hash = hash;
         if (hash !== entry.lastSyncedHash) {
           localChanged = true;

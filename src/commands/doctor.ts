@@ -12,6 +12,7 @@ import { loadProjectState } from "../core/projectState.js";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { sidecarPing } from "../core/pythonSidecarClient.js";
+import { hashFileStream } from "../core/sourceManifest.js";
 
 const execFileAsync = promisify(execFile);
 // @ts-ignore
@@ -178,7 +179,8 @@ async function checkProject(args: DoctorArgs) {
           break;
         }
         const originalHash = typeof originalEntry === "string" ? originalEntry : (originalEntry as any).hash;
-        const currentHash = createHash("sha256").update(await readFile(fullPath)).digest("hex");
+        const algorithm = typeof originalEntry === "string" ? (originalHash.length === 32 ? "md5" : "sha256") : (originalEntry as any).algorithm;
+        const currentHash = await hashFileStream(fullPath, algorithm);
         if (currentHash !== originalHash) {
           checks.push({ name: "Source Integrity", status: "FAIL", detail: `Hash mismatch for ${relPath}` });
           allMatch = false;

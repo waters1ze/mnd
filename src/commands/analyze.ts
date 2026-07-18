@@ -131,24 +131,19 @@ export const handleAnalyze: CommandHandler = async (args, rawInput) => {
     }
 
     if (!state.sourceManifest[relVideoPath]) {
-      const { createReadStream } = await import("node:fs");
+      const { hashFileStream } = await import("../core/sourceManifest.js");
       const { stat } = await import("node:fs/promises");
-      const hash = crypto.createHash("sha256");
       const fstat = await stat(videoPath);
       
-      await new Promise<void>((resolve, reject) => {
-        const stream = createReadStream(videoPath);
-        stream.on("data", (chunk) => hash.update(chunk));
-        stream.on("end", () => {
-          state.sourceManifest[relVideoPath] = {
-             hash: hash.digest("hex"),
-             size: fstat.size,
-             mtime: fstat.mtime.toISOString()
-          };
-          resolve();
-        });
-        stream.on("error", reject);
-      });
+      const hash = await hashFileStream(videoPath, "sha256");
+      state.sourceManifest[relVideoPath] = {
+         sourceId: Buffer.from(relVideoPath).toString('hex'),
+         canonicalRelativePath: relVideoPath,
+         algorithm: "sha256",
+         hash: hash,
+         size: fstat.size,
+         mtime: fstat.mtime.toISOString()
+      };
       await saveProjectState(vaultPath, state);
     }
 

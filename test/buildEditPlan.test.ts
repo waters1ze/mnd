@@ -36,13 +36,13 @@ describe("buildEditPlan validations", () => {
     jest.clearAllMocks();
   });
 
-  async function testValidation(cuts: any[], overlays: any[], errorMessage: RegExp | string, duration = 100) {
+  async function testValidation(cuts: any[], overlays: any[], errorMessage: RegExp | string, duration = 100, audioTrack: any = { musicAssetId: null, syncToBeat: false }) {
     (getMediaDuration as jest.Mock).mockResolvedValue(duration);
     (groqChatWithFallback as jest.Mock).mockResolvedValue({
       result: JSON.stringify({
         cuts,
         overlays,
-        audioTrack: { musicAssetId: null, syncToBeat: false }
+        audioTrack
       })
     });
     await expect(buildEditPlanStep("test", "dummy.mp4", [], [], dummyCtx, dummyState, "vault"))
@@ -88,4 +88,9 @@ describe("buildEditPlan validations", () => {
   it("throws error for overlays zero duration", () => testValidation([], [{ id: "2", type: "text", startSec: 10, endSec: 10, text: "hi" }], /zero or reversed duration/));
   
   it("throws error for unknown asset type broll missing assetId", () => testValidation([], [{ id: "2", type: "broll", startSec: 1, endSec: 5 }], /referenced source\/asset ID is unknown/));
+
+  it("RELEASE_ASSERTION: R05-PLAN-VALIDATION (cut reason enum)", () => testValidation([{ id: "1", startSec: 0, endSec: 5, reason: "invalid_reason" }], [], /unsupported reason/));
+  it("RELEASE_ASSERTION: R05-PLAN-VALIDATION (missing text)", () => testValidation([], [{ id: "2", type: "subtitle", startSec: 0, endSec: 5, text: null }], /missing required text content/));
+  it("RELEASE_ASSERTION: R05-PLAN-VALIDATION (invalid audio track)", () => testValidation([], [], /referenced source\/asset ID unknown_asset is unknown/, 100, { musicAssetId: "unknown_asset", syncToBeat: false }));
 });
+

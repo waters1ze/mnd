@@ -150,6 +150,9 @@ export async function buildEditPlanStep(
     if (cut.endSec > duration) {
       throw new Error(`Invalid cut ${cut.id}: ends beyond source duration (${cut.endSec} > ${duration})`);
     }
+    if (!["pause", "filler_word", "manual"].includes(cut.reason)) {
+      throw new Error(`Invalid cut ${cut.id}: unsupported reason ${cut.reason}`);
+    }
   }
 
   // Validate overlays
@@ -173,8 +176,17 @@ export async function buildEditPlanStep(
     if (!validTypes.includes(overlay.type)) {
       throw new Error(`Invalid overlay ${overlay.id}: unsupported type ${overlay.type}`);
     }
-    if (overlay.type === "broll" && !overlay.assetId) {
+    if (overlay.type === "broll" && (!overlay.assetId || !state.sourceManifest?.[overlay.assetId])) {
       throw new Error(`Invalid overlay ${overlay.id}: referenced source/asset ID is unknown`);
+    }
+    if ((overlay.type === "subtitle" || overlay.type === "text") && !overlay.text) {
+      throw new Error(`Invalid overlay ${overlay.id}: missing required text content`);
+    }
+  }
+  
+  if (editPlan.audioTrack) {
+    if (editPlan.audioTrack.musicAssetId && !state.sourceManifest?.[editPlan.audioTrack.musicAssetId]) {
+      throw new Error(`Invalid audio track: referenced source/asset ID ${editPlan.audioTrack.musicAssetId} is unknown`);
     }
   }
 

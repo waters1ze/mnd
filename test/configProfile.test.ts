@@ -13,7 +13,7 @@ describe("Active profile switching integration", () => {
     invalidateConfigCache();
   });
 
-  test("loads default hybrid profile first, then switches instantly to local", async () => {
+  test("RELEASE_ASSERTION: R15-AI-PROFILES loads default hybrid profile first, then switches instantly to local", async () => {
     // 1. Get initial profile (should be hybrid by default)
     const initialProfile = await getActiveProfile();
     expect(initialProfile.transcription.provider).toBe("groq");
@@ -37,7 +37,7 @@ describe("Active profile switching integration", () => {
     expect(restoredProfile.transcription.provider).toBe("groq");
   });
 
-  test("verifyModelConsistency validates config models correctly", async () => {
+  test("RELEASE_ASSERTION: R15-AI-PROFILES verifyModelConsistency validates config models correctly", async () => {
     const { verifyModelConsistency } = await import("../src/core/config.js");
     const { REQUIRED_LOCAL_MODELS } = await import("../src/core/ollamaBootstrap.js");
     
