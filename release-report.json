@@ -1,82 +1,82 @@
 {
-  "timestamp": "2026-07-18T13:51:05.795Z",
-  "sha": "b927d03c4504823880177706089e92e706b7e074",
+  "timestamp": "2026-07-18T15:28:45.833Z",
+  "sha": "276f3bc2a0904bfea1db2c4fa893f054aeab9300",
   "gates": {
     "R01": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R01-CONFIG-MIGRATIONS"
     },
     "R02": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R02-ESM-NODE-20"
     },
     "R03": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R03-TERMINAL-OWNERSHIP"
     },
     "R04": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R04-SOURCE-INTEGRITY"
     },
     "R05": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R05-PLAN-VALIDATION"
     },
     "R06": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R06-FCPXML-VALIDATION"
     },
     "R07": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R07-DOCTOR-TRUTHFUL"
     },
     "R08": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY"
     },
     "R09": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R09-ANTIGRAVITY-OPERATIONS"
     },
     "R10": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R10-PROCESS-LIFECYCLE"
     },
     "R11": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R11-OBSIDIAN-SETUP"
     },
     "R12": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R12-OBSIDIAN-REGISTRATION"
     },
     "R13": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R13-OBSIDIAN-OPEN"
     },
     "R14": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R14-OBSIDIAN-BASES"
     },
     "R15": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R15-AI-PROFILES"
     },
     "R16": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R16-GOOGLE-DRIVE"
     },
     "R17": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R17-TEST-QUALITY"
     },
     "R18": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R18-OPEN-HANDLES"
     },
     "R19": {
-      "status": "PASS",
-      "reason": "Verified"
+      "status": "FAIL",
+      "reason": "Missing assertions: RELEASE_ASSERTION: R19-BUILT-CLI"
     },
     "R20": {
       "status": "PASS",
@@ -87,7 +87,7 @@
     {
       "cmd": "git status --short",
       "exitCode": 0,
-      "duration": 29
+      "duration": 26
     },
     {
       "cmd": "git diff --check",
@@ -97,132 +97,32 @@
     {
       "cmd": "npm run build",
       "exitCode": 0,
-      "duration": 1834
+      "duration": 1578
     },
     {
       "cmd": "npm run lint",
       "exitCode": 0,
-      "duration": 1585
+      "duration": 1378
     },
     {
-      "cmd": "npm test -- --runInBand",
+      "cmd": "npm test -- --runInBand --verbose",
       "exitCode": 0,
-      "duration": 15728
+      "duration": 14977
     },
     {
       "cmd": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --detectOpenHandles",
       "exitCode": 0,
-      "duration": 13791
+      "duration": 13365
     },
     {
       "cmd": "node dist/index.js --help",
       "exitCode": 0,
-      "duration": 485
-    },
-    {
-      "cmd": "git grep \"RELEASE_ASSERTION:\"",
-      "exitCode": 0,
-      "duration": 28
+      "duration": 348
     },
     {
       "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
       "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 29
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 29
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 32
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 29
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 29
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 28
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 27
-    },
-    {
-      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
-      "exitCode": 1,
-      "duration": 27
+      "duration": 26
     }
   ]
 }

@@ -53,7 +53,7 @@ if (!lint.success) {
 }
 
 // 5. npm test
-const test = run('npm test -- --runInBand --verbose');
+const test = run('npm test -- --runInBand --verbose 2>&1');
 if (!test.success) {
   console.error("Tests failed!", test.output);
   process.exit(1);
