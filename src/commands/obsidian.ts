@@ -2,39 +2,17 @@ import chalk from "chalk";
 import { text, confirm, select } from "@clack/prompts";
 import { loadConfig, saveConfig, updateConfigField, resolveVaultPath } from "../core/config.js";
 import { getRegisteredVaultId, registerVaultSafely, openRegisteredVault, launchObsidianApp, normalizeObsidianVaultInput } from "../integrations/obsidian.js";
-import { writeFileSync, existsSync } from "node:fs";
-import { mkdir, cp, rm, readdir, stat, readFile, rename } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { cp, rm, readdir, readFile, rename } from "node:fs/promises";
 import { join, relative, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
 import { homedir } from "node:os";
+import { ensureVaultStructure as ensureCoreVaultStructure } from "../core/vault.js";
 
 async function ensureVaultStructure(vaultPath: string): Promise<void> {
-  const dirs = [
-    ".obsidian",
-    "Projects",
-    "Assets",
-    "Global_Rules",
-    "Styles",
-    "Skills"
-  ];
-  for (const d of dirs) {
-    if (!existsSync(join(vaultPath, d))) {
-      await mkdir(join(vaultPath, d), { recursive: true });
-    }
-  }
-
-  const homePath = join(vaultPath, "Home.md");
-  if (!existsSync(homePath)) {
-    const content = `# MND Vault Home\n\nWelcome to your MND vault. Here you can find your projects and assets.\n\n- [[Projects/]]\n- [[Assets/]]\n- [[Global_Rules/]]\n- [[Styles/]]\n- [[Skills/]]\n`;
-    try {
-      // Use wx flag for exclusive creation to prevent accidental overwrites
-      writeFileSync(homePath, content, { encoding: "utf-8", flag: "wx" });
-    } catch (err: any) {
-      if (err.code !== "EEXIST") throw err;
-    }
-  }
+  await ensureCoreVaultStructure(vaultPath);
 }
 
 async function performSetup(cfg: any) {

@@ -6,7 +6,7 @@ import { backupFile, atomicWriteFile } from "../core/atomic.js";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 
 export async function handleExportValidate(slug: string): Promise<void> {
   const cfg = await loadConfig();
@@ -45,19 +45,15 @@ export async function handleExportReveal(slug: string): Promise<void> {
 
   console.log(chalk.gray(`Opening folder containing: ${fcpxml}`));
   const platform = process.platform;
-  let cmd = "";
-  if (platform === "win32") {
-    cmd = `explorer /select,"${fcpxml}"`;
-  } else if (platform === "darwin") {
-    cmd = `open -R "${fcpxml}"`;
-  } else {
-    cmd = `xdg-open "${paths.exportsDir}"`;
-  }
-
-  exec(cmd, (err) => {
-    if (err) {
-      console.log(chalk.red(`Failed to reveal file: ${err.message}`));
-    }
+  const executable = platform === "win32" ? "explorer.exe" : platform === "darwin" ? "open" : "xdg-open";
+  const commandArgs = platform === "win32" ? [`/select,${fcpxml}`] : platform === "darwin" ? ["-R", fcpxml] : [paths.exportBundleDir];
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(executable, commandArgs, { shell: false, detached: true, stdio: "ignore", windowsHide: false });
+    child.once("error", reject);
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
   });
 }
 

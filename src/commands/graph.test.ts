@@ -1,6 +1,6 @@
 import { handleGraph } from './graph.js';
 import { discoverGraphExecutable } from './graph-discovery.js';
-import { spawn } from 'node:child_process';
+import { spawn } from 'child_process';
 
 jest.mock('./graph-discovery');
 jest.mock('child_process');

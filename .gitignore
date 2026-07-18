@@ -4,3 +4,8 @@ dist/
 .env
 *.enc
 release-report.json
+.acceptance-localappdata/
+.acceptance-vault/
+.acceptance-media/
+__pycache__/
+*.pyc

@@ -13,10 +13,10 @@ function nextId(): string {
 
 async function getPythonBin(): Promise<string> {
   // Try python3 first, then python
-  const { execSync } = await import("node:child_process");
+  const { execFileSync } = await import("node:child_process");
   for (const bin of ["python3", "python"]) {
     try {
-      execSync(`${bin} --version`, { stdio: "ignore" });
+      execFileSync(bin, ["--version"], { stdio: "ignore", windowsHide: true });
       return bin;
     } catch { /* try next */ }
   }
@@ -87,6 +87,7 @@ export interface TranscriptSegment {
   start: number;
   end: number;
   text: string;
+  words?: Array<{ text: string; start: number; end: number; confidence?: number }>;
 }
 
 export async function sidecarTranscribe(
@@ -121,6 +122,6 @@ export async function sidecarPing(): Promise<boolean> {
 }
 
 export async function stopSidecar(): Promise<void> {
-  _process?.stop();
+  await _process?.stop();
   _process = null;
 }

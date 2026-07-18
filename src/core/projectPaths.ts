@@ -16,10 +16,27 @@ export function validateSlug(slug: string): void {
 export interface ProjectPaths {
   root: string;
   projectMd: string;
+  projectJson: string;
+  sourcesDir: string;
+  transcriptsDir: string;
+  scenesDir: string;
+  editPlansDir: string;
+  timelinesDir: string;
+  assetsDir: string;
+  logsDir: string;
   rawDir: string;
   exportsDir: string;
+  exportBundleDir: string;
   timelineFcpxml: string;
   editPlanJson: string;
+  sourceManifestJson: string;
+  transcriptJson: string;
+  scenesJson: string;
+  compiledTimelineJson: string;
+  exportReportJson: string;
+  validationReportJson: string;
+  subtitlesSrt: string;
+  importReadme: string;
   validationDir: string;
   reportsDir: string;
   transcriptMd: string;
@@ -46,19 +63,44 @@ export function getProjectPaths(vaultPath: string, slug: string): ProjectPaths {
   validateSlug(slug);
 
   const root = join(vaultPath, "Projects", slug);
+  const sourcesDir = join(root, "sources");
   const rawDir = join(root, "raw");
   const exportsDir = join(root, "exports");
+  const exportBundleDir = join(exportsDir, "MND_Export");
   const reportsDir = join(root, "reports");
   const mndDir = join(root, ".mnd");
+  const transcriptsDir = join(root, "transcripts");
+  const scenesDir = join(root, "scenes");
+  const editPlansDir = join(root, "edit-plans");
+  const timelinesDir = join(root, "timelines");
+  const assetsDir = join(root, "assets");
+  const logsDir = join(root, "logs");
 
   const paths: ProjectPaths = {
     root,
     projectMd: join(root, "project.md"),
+    projectJson: join(root, "project.json"),
+    sourcesDir,
+    transcriptsDir,
+    scenesDir,
+    editPlansDir,
+    timelinesDir,
+    assetsDir,
+    logsDir,
     rawDir,
     
     exportsDir,
-    timelineFcpxml: join(exportsDir, "timeline.fcpxml"),
-    editPlanJson: join(exportsDir, "edit-plan.json"),
+    exportBundleDir,
+    timelineFcpxml: join(exportBundleDir, "final-timeline.fcpxml"),
+    editPlanJson: join(editPlansDir, "edit-plan.json"),
+    sourceManifestJson: join(root, "source-manifest.json"),
+    transcriptJson: join(transcriptsDir, "transcript.json"),
+    scenesJson: join(scenesDir, "scenes.json"),
+    compiledTimelineJson: join(timelinesDir, "compiled-timeline.json"),
+    exportReportJson: join(exportBundleDir, "export-report.json"),
+    validationReportJson: join(exportBundleDir, "validation-report.json"),
+    subtitlesSrt: join(exportBundleDir, "subtitles.srt"),
+    importReadme: join(exportBundleDir, "README_IMPORT.txt"),
     validationDir: join(exportsDir, "validation"),
     
     reportsDir,
@@ -83,7 +125,8 @@ export function getProjectPaths(vaultPath: string, slug: string): ProjectPaths {
   // Verify that no derived directory points inside rawDir
   const absoluteRaw = resolve(rawDir) + sep;
   const derivedDirs = [
-    exportsDir, reportsDir, mndDir, paths.cacheDir, paths.audioDir, 
+    sourcesDir, transcriptsDir, scenesDir, editPlansDir, timelinesDir, assetsDir,
+    logsDir, exportsDir, exportBundleDir, reportsDir, mndDir, paths.cacheDir, paths.audioDir,
     paths.framesDir, paths.proxiesDir, paths.backupsDir, paths.syncDir, paths.validationDir
   ];
   for (const dir of derivedDirs) {
@@ -111,20 +154,28 @@ export async function analyzeProjectFlags(folderPath: string): Promise<{hasRawMe
   const { readdir, stat } = await import("node:fs/promises");
   
   let hasRawMedia = false;
-  try {
-    const files = await readdir(join(folderPath, "raw"));
-    hasRawMedia = files.length > 0;
-  } catch {}
+  const mediaExtensions = /\.(?:3gp|aac|aif|aiff|avi|bmp|flac|gif|heic|jpe?g|m4a|m4v|mkv|mov|mp3|mp4|mxf|ogg|opus|png|tiff?|wav|webm|webp)$/i;
+  async function containsMedia(path: string): Promise<boolean> {
+    try {
+      const entries = await readdir(path, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && mediaExtensions.test(entry.name)) return true;
+        if (entry.isDirectory() && await containsMedia(join(path, entry.name))) return true;
+      }
+    } catch {}
+    return false;
+  }
+  hasRawMedia = await containsMedia(join(folderPath, "sources")) || await containsMedia(join(folderPath, "raw"));
 
   let hasValidPlan = false;
   try {
-    const s = await stat(join(folderPath, "exports", "edit-plan.json"));
+    const s = await stat(join(folderPath, "edit-plans", "edit-plan.json"));
     hasValidPlan = s.isFile();
   } catch {}
 
   let hasValidExport = false;
   try {
-    const s = await stat(join(folderPath, "exports", "timeline.fcpxml"));
+    const s = await stat(join(folderPath, "exports", "MND_Export", "final-timeline.fcpxml"));
     hasValidExport = s.isFile();
   } catch {}
 

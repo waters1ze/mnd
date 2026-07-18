@@ -2,6 +2,7 @@
 import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
+import { randomUUID } from "node:crypto";
 import matter from "gray-matter";
 import { simpleGit } from "simple-git";
 import type {
@@ -13,6 +14,8 @@ import type {
   VaultStyle,
   VaultSkill,
 } from "../types/vault.js";
+import type { ProjectFileV1 } from "../types/production.js";
+import { atomicWriteFile } from "./atomic.js";
 
 // ─── Slugify ──────────────────────────────────────────────────────────────────
 
@@ -45,11 +48,21 @@ Projects/
 
 export async function ensureVaultStructure(vaultPath: string): Promise<void> {
   const dirs = [
+    ".obsidian",
+    ".mnd",
+    ".mnd/backups",
     "Global_Rules",
     "Styles",
     "Skills",
     "Assets",
     "Projects",
+    "Images",
+    "Audio",
+    "B-Roll",
+    "Thumbnails",
+    "Transcripts",
+    "Templates",
+    "Exports",
   ];
 
   for (const d of dirs) {
@@ -65,6 +78,34 @@ export async function ensureVaultStructure(vaultPath: string): Promise<void> {
   const vaultMetaPath = join(vaultPath, ".mnd-vault.json");
   if (!existsSync(vaultMetaPath)) {
     await writeFile(vaultMetaPath, JSON.stringify({ version: 1 }, null, 2), "utf-8");
+  }
+
+  const homePath = join(vaultPath, "Home.md");
+  if (!existsSync(homePath)) {
+    await atomicWriteFile(
+      homePath,
+      "# MND Vault Home\n\nWelcome to your MND vault.\n\n- [[Projects/]]\n- [[Assets/]]\n- [[Global_Rules/]]\n- [[Styles/]]\n- [[Skills/]]\n",
+      { overwrite: false }
+    );
+  }
+
+  const graphConfigPath = join(vaultPath, ".mnd", "config.json");
+  if (!existsSync(graphConfigPath)) {
+    await atomicWriteFile(
+      graphConfigPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        vaultId: randomUUID(),
+        createdAt: new Date().toISOString(),
+        generator: "mnd-cli",
+      }, null, 2)}\n`,
+      { overwrite: false }
+    );
+  }
+
+  const graphStatePath = join(vaultPath, ".mnd", "state.json");
+  if (!existsSync(graphStatePath)) {
+    await atomicWriteFile(graphStatePath, "{\n  \"schemaVersion\": 1\n}\n", { overwrite: false });
   }
 
   // Initialize git if not already
@@ -173,14 +214,26 @@ export async function createProject(
   style: string
 ): Promise<string> {
   const slug = slugify(name);
+  if (!slug) throw new Error("Project name does not contain characters that can form a safe slug");
   
   const { getProjectPaths } = await import("./projectPaths.js");
   const paths = getProjectPaths(vaultPath, slug);
+  if (existsSync(paths.projectMd) || existsSync(paths.projectJson)) {
+    throw new Error(`Project already exists: ${slug}`);
+  }
 
   // Create all necessary directories
   const dirs = [
+    paths.sourcesDir,
+    paths.transcriptsDir,
+    paths.scenesDir,
+    paths.editPlansDir,
+    paths.timelinesDir,
+    paths.assetsDir,
+    paths.logsDir,
     paths.rawDir,
     paths.exportsDir,
+    paths.exportBundleDir,
     paths.validationDir,
     paths.reportsDir,
     paths.mndDir,
@@ -211,6 +264,18 @@ export async function createProject(
     frontmatter,
     `# ${name}\n\nProject created by mnd.\n`
   );
+
+  const projectFile: ProjectFileV1 = {
+    schemaVersion: 1,
+    id: randomUUID(),
+    slug,
+    name,
+    style,
+    editProfile: "talking_head",
+    createdAt: now,
+    updatedAt: now,
+  };
+  await atomicWriteFile(paths.projectJson, `${JSON.stringify(projectFile, null, 2)}\n`, { overwrite: false });
 
   return slug;
 }

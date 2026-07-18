@@ -239,12 +239,12 @@ export class PersistentProcess {
   }
 
   async restart(): Promise<void> {
-    this.stop(false);
+    await this.stop(false);
     await this.start();
     this.processQueue();
   }
 
-  stop(clearQueue = true): void {
+  async stop(clearQueue = true): Promise<void> {
     this.state = "stopped";
     if (this.healthTimer) {
       clearInterval(this.healthTimer);
@@ -258,10 +258,8 @@ export class PersistentProcess {
       clearTimeout(this.readyTimeoutId);
       this.readyTimeoutId = null;
     }
-    if (this.child) {
-      terminateOwnedProcessTree(this.child, { force: true }).catch(() => {});
-      this.child = null;
-    }
+    const child = this.child;
+    this.child = null;
     if (clearQueue) {
       for (const item of this.queue) {
         item.reject(new Error(`[${this.name}] process stopped`));
@@ -273,5 +271,9 @@ export class PersistentProcess {
       this.queue = [];
     }
     this.busy = false;
+    if (child) {
+      await terminateOwnedProcessTree(child, { force: true });
+      if (child.pid) unregisterProcess(child.pid);
+    }
   }
 }

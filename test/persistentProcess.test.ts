@@ -59,8 +59,8 @@ jest.mock("node:child_process", () => ({
 describe("PersistentProcess", () => {
   let proc: PersistentProcess;
 
-  afterEach(() => {
-    proc?.stop();
+  afterEach(async () => {
+    await proc?.stop();
     jest.clearAllMocks();
   });
 
@@ -170,7 +170,7 @@ describe("PersistentProcess", () => {
     expect(["transport_ready", "restarting", "starting", "busy"]).toContain(status.state);
 
     // Clean up
-    proc.stop();
+    await proc.stop();
   });
 
   test("stop() rejects all pending queue items", async () => {
@@ -186,7 +186,7 @@ describe("PersistentProcess", () => {
     const p1 = proc.send("req-1");
     const p2 = proc.send("req-2");
 
-    proc.stop();
+    await proc.stop();
 
     await expect(p1).rejects.toThrow();
     await expect(p2).rejects.toThrow();

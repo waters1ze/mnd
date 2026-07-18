@@ -5,6 +5,14 @@ jest.mock("node:fs", () => ({
   existsSync: jest.fn().mockReturnValue(true)
 }));
 
+jest.mock("node:fs/promises", () => ({
+  stat: jest.fn().mockResolvedValue({ size: 1024, mtimeMs: 12345 })
+}));
+
+jest.mock("../src/core/sourceManifest.js", () => ({
+  hashFileStream: jest.fn().mockResolvedValue("a".repeat(64))
+}));
+
 jest.mock("node:child_process", () => ({
   execFile: jest.fn((cmd, args, optionsOrCb, cbOrNone) => {
     let cb;
@@ -52,9 +60,21 @@ jest.mock("node:child_process", () => ({
     proc.kill = jest.fn();
     proc.stderr = new EventEmitter();
     proc.stdout = new EventEmitter();
-    proc.stdin = { write: jest.fn(), end: jest.fn() };
-    
     const mode = (global as any).__mockAntigravitySmoke || "pass";
+    proc.stdin = {
+      write: jest.fn((payload: string) => {
+        if (mode === "crash") return;
+        const request = JSON.parse(payload.trim());
+        setTimeout(() => proc.stdout.emit("data", Buffer.from(`${JSON.stringify({
+          id: request.id,
+          ok: true,
+          protocolVersion: "1",
+          capabilities: ["models.list"],
+          models: [{ id: "ag-test", capabilities: ["models.list"] }]
+        })}\n`)), 1);
+      }),
+      end: jest.fn()
+    };
     
     if (mode === "crash") {
       setTimeout(() => proc.emit("exit", 1), 10);
@@ -85,7 +105,7 @@ describe("antigravityDiscovery", () => {
     expect(res.status).toBe("transport_ready");
   });
 
-  it("RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY verifies protocol via --help and starts process", async () => {
+  it("RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY requires a correlated JSON handshake", async () => {
     const res = await getVerifiedAntigravity(true);
     expect(res.status).toBe("transport_ready");
   });
@@ -110,11 +130,10 @@ describe("antigravityDiscovery", () => {
     expect(res.status).toBe("transport_ready");
   });
 
-  it("fails smoke check if process crashes immediately", async () => {
+  it("does not claim transport readiness if the process crashes before handshake", async () => {
     (global as any).__mockAntigravityMode = "normal";
     (global as any).__mockAntigravitySmoke = "crash";
     const res = await getVerifiedAntigravity(true);
-    // Since it doesn't return transport_ready, the discovery loop finishes and reports not_found
-    expect(res.status).toBe("not_found");
+    expect(res.status).toBe("protocol_advertised");
   });
 });

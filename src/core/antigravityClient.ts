@@ -1,9 +1,9 @@
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { loadConfig } from "./config.js";
 import { PersistentProcess } from "./persistentProcess.js";
 import { getVerifiedAntigravity } from "../integrations/antigravityDiscovery.js";
 import chalk from "chalk";
+import { realpath, stat } from "node:fs/promises";
+import { hashFileStream } from "./sourceManifest.js";
 
 let _process: PersistentProcess | null = null;
 
@@ -48,22 +48,9 @@ export function getAntigravityStatus(): ReturnType<PersistentProcess["getStatus"
 }
 
 import { updateConfigField } from "./config.js";
-import { statSync, readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-
 async function recordCapabilityVerified(capability: "classification" | "thumbnail" | "imageGeneration", executablePath: string): Promise<void> {
-  let mtime_ms = 0;
-  let size = 0;
-  let sha256 = "";
-  try {
-     const st = statSync(executablePath);
-     mtime_ms = st.mtimeMs;
-     size = st.size;
-     const fileBuffer = readFileSync(executablePath);
-     const hashSum = createHash('sha256');
-     hashSum.update(fileBuffer);
-     sha256 = hashSum.digest('hex');
-  } catch {}
+  const executableStat = await stat(executablePath);
+  const sha256 = await hashFileStream(executablePath);
 
   const result = await getVerifiedAntigravity(false);
   if (result.status === "transport_ready" || result.status === "operation_verified") {
@@ -76,8 +63,8 @@ async function recordCapabilityVerified(capability: "classification" | "thumbnai
 
   await updateConfigField(c => {
     if (c.connections.antigravity) {
-       c.connections.antigravity.executable_mtime_ms = mtime_ms;
-       c.connections.antigravity.executable_size = size;
+       c.connections.antigravity.executable_mtime_ms = executableStat.mtimeMs;
+       c.connections.antigravity.executable_size = executableStat.size;
        c.connections.antigravity.executable_sha256 = sha256;
        c.connections.antigravity.last_verified_at = new Date().toISOString();
     }
@@ -85,13 +72,16 @@ async function recordCapabilityVerified(capability: "classification" | "thumbnai
 }
 
 export async function classifyAsset(filePath: string): Promise<AssetClassification> {
+  const canonicalInput = await realpath(filePath);
+  const inputStat = await stat(canonicalInput);
+  if (!inputStat.isFile()) throw new Error(`Antigravity classification input is not a regular file: ${filePath}`);
   const proc = await getProcess();
   
   if (process.env["MND_DEBUG"]) {
     console.warn(chalk.yellow(`[Antigravity] action=classify file=${filePath}`));
   }
   
-  const req = JSON.stringify({ action: "classify", payload: { filePath } });
+  const req = JSON.stringify({ action: "classify", payload: { filePath: canonicalInput } });
   const resp = await proc.send(req);
   let parsed: any;
   try {
@@ -132,9 +122,13 @@ export async function generateThumbnail(spec: ThumbnailSpec): Promise<string> {
   if (!parsed || typeof parsed.outputPath !== "string") {
     throw new Error("Invalid response format from Antigravity: missing outputPath");
   }
+  const canonicalOutput = await realpath(parsed.outputPath);
+  const outputStat = await stat(canonicalOutput);
+  if (!outputStat.isFile()) throw new Error("Antigravity thumbnail output is not a regular file");
+  await hashFileStream(canonicalOutput);
   
   await recordCapabilityVerified("thumbnail", proc.opts.command);
-  return parsed.outputPath;
+  return canonicalOutput;
 }
 
 export async function generateImage(prompt: string): Promise<string> {
@@ -162,12 +156,16 @@ export async function generateImage(prompt: string): Promise<string> {
   if (!parsed || typeof parsed.outputPath !== "string") {
     throw new Error("Invalid response format from Antigravity: missing outputPath");
   }
+  const canonicalOutput = await realpath(parsed.outputPath);
+  const outputStat = await stat(canonicalOutput);
+  if (!outputStat.isFile()) throw new Error("Antigravity image output is not a regular file");
+  await hashFileStream(canonicalOutput);
   
   await recordCapabilityVerified("imageGeneration", proc.opts.command);
-  return parsed.outputPath;
+  return canonicalOutput;
 }
 
 export async function stopAntigravity(): Promise<void> {
-  _process?.stop();
+  await _process?.stop();
   _process = null;
 }

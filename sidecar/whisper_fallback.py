@@ -38,8 +38,22 @@ def transcribe(audio_path: str, model_size: str = "medium") -> list[dict]:
     Returns list of segments: [{ "start": float, "end": float, "text": str }, ...]
     """
     model = get_model(model_size)
-    segments, _info = model.transcribe(audio_path, beam_size=5)
+    segments, _info = model.transcribe(audio_path, beam_size=5, word_timestamps=True)
     return [
-        {"start": seg.start, "end": seg.end, "text": seg.text.strip()}
+        {
+            "start": seg.start,
+            "end": seg.end,
+            "text": seg.text.strip(),
+            "words": [
+                {
+                    "text": word.word.strip(),
+                    "start": word.start,
+                    "end": word.end,
+                    "confidence": word.probability,
+                }
+                for word in (seg.words or [])
+                if word.start is not None and word.end is not None and word.start < word.end
+            ],
+        }
         for seg in segments
     ]

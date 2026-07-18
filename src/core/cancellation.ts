@@ -16,8 +16,15 @@ export async function terminateOwnedProcessTree(
 
   if (process.platform === "win32") {
     try {
-      await execFileAsync("taskkill.exe", ["/PID", String(pid), "/T", "/F"]);
-    } catch {}
+      await execFileAsync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
+        windowsHide: true,
+        timeout: Math.max(500, Math.min(timeoutMs, 5000)),
+      });
+    } catch {
+      try {
+        child.kill("SIGKILL");
+      } catch {}
+    }
     return;
   }
 
@@ -63,7 +70,7 @@ export async function terminateOwnedProcessTree(
 
 export interface TrackedProcess {
   pid: number;
-  kind: "ffmpeg" | "ffprobe" | "python" | "antigravity";
+  kind: "ffmpeg" | "ffprobe" | "python" | "antigravity" | "ollama";
   process: ChildProcess;
   ownedByRun: boolean;
   fluentCommand?: any; // To call .kill() on fluent-ffmpeg if needed

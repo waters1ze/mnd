@@ -1,6 +1,29 @@
 import { classifyAsset, generateThumbnail, generateImage } from "../src/core/antigravityClient.js";
 import { PersistentProcess } from "../src/core/persistentProcess.js";
 
+jest.mock("node:fs/promises", () => ({
+  realpath: jest.fn(async (value: string) => value),
+  stat: jest.fn().mockResolvedValue({ isFile: () => true, mtimeMs: 12345, size: 1024 })
+}));
+
+jest.mock("../src/core/config.js", () => ({
+  loadConfig: jest.fn().mockResolvedValue({
+    profile: "hybrid",
+    models: {
+      hybrid: { image_gen: {} },
+      local: { image_gen: {} }
+    },
+    connections: { antigravity: {} }
+  }),
+  updateConfigField: jest.fn().mockImplementation(async (update) => {
+    update({ connections: { antigravity: {} } });
+  })
+}));
+
+jest.mock("../src/core/sourceManifest.js", () => ({
+  hashFileStream: jest.fn().mockResolvedValue("b".repeat(64))
+}));
+
 jest.mock("../src/integrations/antigravityDiscovery.js", () => ({
   getVerifiedAntigravity: jest.fn().mockResolvedValue({
     status: "transport_ready",

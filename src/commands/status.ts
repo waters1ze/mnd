@@ -1,9 +1,14 @@
 // src/commands/status.ts
 import Table from "cli-table3";
 import chalk from "chalk";
-import { loadConfig } from "../core/config.js";
+import { loadConfig, resolveVaultPath } from "../core/config.js";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
+import { session } from "../repl/loop.js";
+import { getProjectPaths } from "../core/projectPaths.js";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { emitResult, isJsonMode } from "../core/output.js";
 
 // Lazy imports to avoid circular deps at startup
 let _antigravity: { getStatus: () => { alive: boolean; queueLength: number; state: string } } | null = null;
@@ -26,6 +31,35 @@ export const handleStatus: CommandHandler = async () => {
 
   const agStatus = _antigravity?.getStatus() ?? { alive: false, queueLength: 0, state: "unknown" };
   const sidecarStatus = _sidecar?.getStatus() ?? { alive: false, state: "unknown" };
+  let project: Record<string, unknown> | null = null;
+  if (session.currentProjectSlug) {
+    const paths = getProjectPaths(resolveVaultPath(cfg), session.currentProjectSlug);
+    let operations: unknown[] = [];
+    const operationPath = `${paths.mndDir}/operations.json`;
+    if (existsSync(operationPath)) {
+      const parsed = JSON.parse(await readFile(operationPath, "utf8")) as { operations?: unknown[] };
+      operations = parsed.operations ?? [];
+    }
+    project = {
+      slug: session.currentProjectSlug,
+      sourceManifest: existsSync(paths.sourceManifestJson),
+      transcript: existsSync(paths.transcriptJson),
+      scenes: existsSync(paths.scenesJson),
+      editPlan: existsSync(paths.editPlanJson),
+      compiledTimeline: existsSync(paths.compiledTimelineJson),
+      resolveExport: existsSync(paths.timelineFcpxml),
+      operations,
+    };
+  }
+  if (isJsonMode()) {
+    emitResult({
+      ok: true,
+      services: { antigravity: agStatus, sidecar: sidecarStatus },
+      profile: cfg.profile,
+      project,
+    });
+    return;
+  }
 
   const table = new Table({
     head: [

@@ -27,8 +27,11 @@ async function fullNew(): Promise<void> {
   process.env["MND_VERBOSE"] = "1";
   console.log(chalk.hex(theme.accent)("Running full verbose pipeline...\n"));
   try {
-    const { handleAnalyze } = await import("./analyze.js");
-    await handleAnalyze([], "analyze");
+    const { handleAnalyzeProduction, handleEdit, handleExport } = await import("./productionPipeline.js");
+    await handleAnalyzeProduction([], "analyze");
+    await handleEdit(["plan"], "edit plan");
+    await handleEdit(["build"], "edit build");
+    await handleExport(["resolve"], "export resolve");
   } finally {
     delete process.env["MND_VERBOSE"];
   }

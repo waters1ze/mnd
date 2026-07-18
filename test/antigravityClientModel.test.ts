@@ -2,6 +2,15 @@ import { generateImage, stopAntigravity } from "../src/core/antigravityClient.js
 
 let mockModel: string | undefined = undefined;
 
+jest.mock("node:fs/promises", () => ({
+  realpath: jest.fn(async (value: string) => value),
+  stat: jest.fn().mockResolvedValue({ isFile: () => true, mtimeMs: 12345, size: 1024 })
+}));
+
+jest.mock("../src/core/sourceManifest.js", () => ({
+  hashFileStream: jest.fn().mockResolvedValue("b".repeat(64))
+}));
+
 jest.mock("../src/core/config.js", () => ({
   loadConfig: jest.fn().mockImplementation(async () => {
     return {

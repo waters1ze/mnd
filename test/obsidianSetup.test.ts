@@ -18,6 +18,9 @@ jest.mock("../src/core/config.js", () => ({
   resolveVaultPath: jest.fn().mockReturnValue("C:\\Fake\\Vault"),
   updateConfigField: jest.fn()
 }));
+jest.mock("../src/core/vault.js", () => ({
+  ensureVaultStructure: jest.fn().mockResolvedValue(undefined)
+}));
 jest.mock("node:child_process", () => ({
   exec: jest.fn((cmd, cb) => cb(null, ""))
 }));

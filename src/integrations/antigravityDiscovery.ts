@@ -5,6 +5,8 @@ import { loadConfig, updateConfigField } from "../core/config.js";
 import chalk from "chalk";
 import { LATEST_CONFIG_VERSION } from "../core/migrations.js";
 import { platform } from "node:os";
+import { stat } from "node:fs/promises";
+import { hashFileStream } from "../core/sourceManifest.js";
 
 export type AntigravityVerificationStage =
   | "not_found"
@@ -30,6 +32,9 @@ export interface AntigravityInstallation {
   capabilities: string[];
   models: { id: string; capabilities: string[] }[];
   verifiedAt: string;
+  executableSize: number;
+  executableMtimeMs: number;
+  executableSha256: string;
   stage: AntigravityVerificationStage;
   verifiedCapabilities: {
     thumbnail?: { verifiedAt: string };
@@ -123,46 +128,63 @@ export async function verifyCandidate(candidate: string): Promise<{
     return { stage: "unsupported", capabilities: [], models: [], reason: "JSON protocol unsupported" };
   }
 
-  // Protocol Advertised
-  // Now bounded runtime smoke check
-  const smokeCheck = await new Promise<boolean>((resolve) => {
+  const handshake = await new Promise<{ ok: boolean; capabilities: string[]; models: { id: string; capabilities: string[] }[] }>((resolve) => {
     const proc = spawn(candidate, ["--non-interactive", "--json-io"], { stdio: ["pipe", "pipe", "pipe"] });
-    let isAlive = true;
-    let timer: NodeJS.Timeout;
-    
-    const cleanup = () => {
-       clearTimeout(timer);
-       try { proc.stdin?.end(); } catch {}
-       import("../core/cancellation.js").then(({ terminateOwnedProcessTree }) => {
-          terminateOwnedProcessTree(proc, { force: true }).catch(() => {});
-       });
+    const requestId = `mnd-handshake-${process.pid}-${Date.now()}`;
+    let settled = false;
+    let stdout = "";
+    const finish = (result: { ok: boolean; capabilities: string[]; models: { id: string; capabilities: string[] }[] }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { proc.stdin?.end(); } catch {}
+      import("../core/cancellation.js").then(({ terminateOwnedProcessTree }) => {
+        terminateOwnedProcessTree(proc, { force: true }).catch(() => {});
+      });
+      resolve(result);
     };
-    
-    proc.on("error", () => {
-      isAlive = false;
-      cleanup();
-      resolve(false);
-    });
-    
-    proc.on("exit", () => {
-      isAlive = false;
-      cleanup();
-      resolve(false);
-    });
-    
-    timer = setTimeout(() => {
-      if (isAlive) {
-        cleanup();
-        resolve(true);
+    const parseLines = () => {
+      const lines = stdout.split(/\r?\n/);
+      stdout = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const response = JSON.parse(line) as Record<string, unknown>;
+          if (response.id !== requestId || response.ok === false) continue;
+          const capabilities = Array.isArray(response.capabilities) ? response.capabilities.filter((item): item is string => typeof item === "string") : [];
+          const models = Array.isArray(response.models)
+            ? response.models.flatMap((item) => {
+                if (!item || typeof item !== "object" || typeof (item as { id?: unknown }).id !== "string") return [];
+                const rawCapabilities = (item as { capabilities?: unknown }).capabilities;
+                return [{ id: (item as { id: string }).id, capabilities: Array.isArray(rawCapabilities) ? rawCapabilities.filter((value): value is string => typeof value === "string") : [] }];
+              })
+            : [];
+          const protocolAccepted = response.ok === true || typeof response.protocolVersion === "string" || capabilities.length > 0 || models.length > 0;
+          if (protocolAccepted) finish({ ok: true, capabilities, models });
+        } catch {
+          // Non-JSON output is ignored; a valid correlated response is still required.
+        }
       }
-    }, 2000);
+    };
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      if (stdout.length + chunk.length > 1024 * 1024) {
+        finish({ ok: false, capabilities: [], models: [] });
+        return;
+      }
+      stdout += chunk.toString("utf8");
+      parseLines();
+    });
+    proc.once("error", () => finish({ ok: false, capabilities: [], models: [] }));
+    proc.once("exit", () => finish({ ok: false, capabilities: [], models: [] }));
+    const timer = setTimeout(() => finish({ ok: false, capabilities: [], models: [] }), 3000);
+    proc.stdin?.write(`${JSON.stringify({ id: requestId, type: "handshake", client: "mnd", protocolVersion: "1" })}\n`);
   });
 
-  if (smokeCheck) {
+  if (handshake.ok) {
     const verString = version.split("\n")[0];
-    return { stage: "transport_ready", ...(verString ? { version: verString } : {}), capabilities: [], models: [], reason: "Protocol advertised, runtime transport ready." };
+    return { stage: "transport_ready", ...(verString ? { version: verString } : {}), capabilities: handshake.capabilities, models: handshake.models, reason: "Correlated JSON handshake succeeded." };
   } else {
-    return { stage: "protocol_advertised", capabilities: [], models: [], reason: "Process failed to start or crashed immediately." };
+    return { stage: "protocol_advertised", capabilities: [], models: [], reason: "JSON protocol was advertised but no valid correlated handshake response was received." };
   }
 }
 
@@ -236,6 +258,8 @@ export function discoverAntigravityCli(): Promise<AntigravityDiscoveryResult> {
         checkedCandidates.push({ path: p, source, result: res.stage === "error" ? res.reason || "error" : res.stage });
         
         if (res.stage === "transport_ready" || res.stage === "operation_verified") {
+          const executableStat = await stat(p);
+          const executableSha256 = await hashFileStream(p);
           const inst: AntigravityInstallation = {
             executablePath: p,
             ...(res.version ? { version: res.version } : {}),
@@ -243,6 +267,9 @@ export function discoverAntigravityCli(): Promise<AntigravityDiscoveryResult> {
             capabilities: res.capabilities,
             models: res.models,
             verifiedAt: new Date().toISOString(),
+            executableSize: executableStat.size,
+            executableMtimeMs: executableStat.mtimeMs,
+            executableSha256,
             stage: res.stage,
             verifiedCapabilities: {}
           };
@@ -262,6 +289,11 @@ export function discoverAntigravityCli(): Promise<AntigravityDiscoveryResult> {
             c.connections.antigravity.cached_executable_path = p;
             c.connections.antigravity.cached_version = res.version || null;
             c.connections.antigravity.last_verified_at = inst.verifiedAt;
+            c.connections.antigravity.executable_size = inst.executableSize;
+            c.connections.antigravity.executable_mtime_ms = inst.executableMtimeMs;
+            c.connections.antigravity.executable_sha256 = inst.executableSha256;
+            c.connections.antigravity.cached_capabilities = inst.capabilities;
+            c.connections.antigravity.cached_models = inst.models;
           });
 
           return result;
@@ -271,9 +303,10 @@ export function discoverAntigravityCli(): Promise<AntigravityDiscoveryResult> {
       }
 
       const hasUnsupported = checkedCandidates.some(c => c.result === "unsupported_desktop_app");
+      const hasAdvertisedProtocol = checkedCandidates.some(c => c.result === "protocol_advertised");
       
       const result: AntigravityDiscoveryResult = {
-        status: hasUnsupported ? "unsupported" : "not_found",
+        status: hasAdvertisedProtocol ? "protocol_advertised" : hasUnsupported ? "unsupported" : "not_found",
         checkedCandidates
       };
       cachedDiscoveryResult = result;

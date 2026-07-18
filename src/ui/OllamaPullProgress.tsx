@@ -67,7 +67,7 @@ export function OllamaPullProgress({ model, host, onSuccess, onCancel }: Props):
     if (child.pid) {
       registerProcess({
         pid: child.pid,
-        kind: "python", // 'python' is just a placeholder here, or we can add 'ollama' to the type if we want, but it just needs to be a valid TrackedProcess
+        kind: "ollama",
         process: child,
         ownedByRun: true
       });

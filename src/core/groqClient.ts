@@ -3,6 +3,9 @@ import chalk from "chalk";
 import { loadConfig, getActiveProfile } from "./config.js";
 import { getSecretsStore } from "./secrets.js";
 import { withLog } from "./runLog.js";
+import { createReadStream } from "node:fs";
+import { Groq } from "groq-sdk";
+import { getAbortController } from "./cancellation.js";
 
 const GROQ_BASE = "https://api.groq.com/openai/v1";
 
@@ -123,37 +126,14 @@ export async function groqVisionChat(
   });
 }
 
-export async function groqTranscribe(audioPath: string): Promise<string> {
-  const profile = await getActiveProfile();
-  const model = profile.transcription.model ?? "whisper-large-v3";
-  const cfg = await loadConfig();
-  const maxRetries = cfg.fallback.max_retries_before_fallback;
-
-  return withLog("transcribe", "groq", model, async () => {
-    const apiKey = await getApiKey();
-    const { readFile } = await import("node:fs/promises");
-    const audioData = await readFile(audioPath);
-    const formData = new FormData();
-    formData.append("file", new Blob([audioData]), "audio.wav");
-    formData.append("model", model);
-    formData.append("response_format", "verbose_json");
-
-    const resp = await fetchWithRetry(
-      `${GROQ_BASE}/audio/transcriptions`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: formData,
-      },
-      maxRetries
-    );
-    const data = (await resp.json()) as { text: string };
-    return data.text;
-  });
+export interface DetailedTranscription {
+  text: string;
+  language?: string;
+  segments: Array<{ start: number; end: number; text: string; avg_logprob?: number; speaker?: string }>;
+  words: Array<{ start: number; end: number; word: string; probability?: number; speaker?: string }>;
 }
 
-/** Transcribe returning timestamped segments */
-export async function groqTranscribeSegments(audioPath: string): Promise<Array<{ start: number; end: number; text: string }>> {
+export async function groqTranscribeDetailed(audioPath: string): Promise<DetailedTranscription> {
   const profile = await getActiveProfile();
   const model = profile.transcription.model ?? "whisper-large-v3";
   const cfg = await loadConfig();
@@ -161,27 +141,31 @@ export async function groqTranscribeSegments(audioPath: string): Promise<Array<{
 
   return withLog("transcribe_segments", "groq", model, async () => {
     const apiKey = await getApiKey();
-    const { readFile } = await import("node:fs/promises");
-    const audioData = await readFile(audioPath);
-    const formData = new FormData();
-    formData.append("file", new Blob([audioData]), "audio.wav");
-    formData.append("model", model);
-    formData.append("response_format", "verbose_json");
-
-    const resp = await fetchWithRetry(
-      `${GROQ_BASE}/audio/transcriptions`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: formData,
-      },
-      maxRetries
-    );
-    const data = (await resp.json()) as {
-      segments?: Array<{ start: number; end: number; text: string }>;
+    const client = new Groq({ apiKey, maxRetries });
+    const response = await client.audio.transcriptions.create({
+      file: createReadStream(audioPath),
+      model,
+      response_format: "verbose_json",
+      timestamp_granularities: ["word", "segment"],
+      temperature: 0,
+    }, { signal: getAbortController().signal });
+    const data = response as unknown as DetailedTranscription;
+    return {
+      text: data.text ?? "",
+      ...(data.language ? { language: data.language } : {}),
+      segments: Array.isArray(data.segments) ? data.segments : [],
+      words: Array.isArray(data.words) ? data.words : [],
     };
-    return data.segments ?? [];
   });
+}
+
+export async function groqTranscribe(audioPath: string): Promise<string> {
+  return (await groqTranscribeDetailed(audioPath)).text;
+}
+
+/** Transcribe returning timestamped segments */
+export async function groqTranscribeSegments(audioPath: string): Promise<Array<{ start: number; end: number; text: string }>> {
+  return (await groqTranscribeDetailed(audioPath)).segments;
 }
 
 /**

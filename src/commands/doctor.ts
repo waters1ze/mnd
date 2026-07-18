@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { loadConfig } from "../core/config.js";
+import { loadConfig, resolveVaultPath } from "../core/config.js";
 import { getVerifiedAntigravity } from "../integrations/antigravityDiscovery.js";
 import { getRegisteredVaultId } from "../integrations/obsidian.js";
 import { existsSync } from "node:fs";
@@ -8,11 +8,13 @@ import { session } from "../repl/loop.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { getProjectPaths } from "../core/projectPaths.js";
-import { loadProjectState } from "../core/projectState.js";
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { sidecarPing } from "../core/pythonSidecarClient.js";
-import { hashFileStream } from "../core/sourceManifest.js";
+import { loadSourceManifest, verifySourceRecord } from "../core/sourceManifest.js";
+import { isJsonMode } from "../core/output.js";
+import { validateEditPlan } from "../pipeline/editPlanValidator.js";
+import type { EditPlanV1 } from "../types/production.js";
+import { validateFcpxmlFile } from "../export/fcpxmlValidator.js";
 
 const execFileAsync = promisify(execFile);
 // @ts-ignore
@@ -26,15 +28,18 @@ interface DoctorArgs {
   json: boolean;
   noNetwork: boolean;
   fix: boolean;
+  project: string | null;
 }
 
 export async function handleDoctor(rawArgs: string[], rawInput: string): Promise<void> {
+  const projectIndex = rawArgs.indexOf("--project");
   const args: DoctorArgs = {
     quick: rawArgs.includes("--quick"),
     full: rawArgs.includes("--full"),
-    json: rawArgs.includes("--json"),
+    json: rawArgs.includes("--json") || isJsonMode(),
     noNetwork: rawArgs.includes("--no-network"),
     fix: rawArgs.includes("--fix"),
+    project: projectIndex >= 0 ? rawArgs[projectIndex + 1] ?? null : session.currentProjectSlug,
   };
 
   const results = {
@@ -43,7 +48,7 @@ export async function handleDoctor(rawArgs: string[], rawInput: string): Promise
     integrations: await checkIntegrations(args),
     sync: await checkSync(args),
     media: await checkMedia(args),
-    project: session.currentProjectSlug ? await checkProject(args) : null,
+    project: args.project ? await checkProject(args, args.project) : null,
   };
 
   if (args.json) {
@@ -60,7 +65,7 @@ export async function handleDoctor(rawArgs: string[], rawInput: string): Promise
   printSection("Media Tools", results.media);
   
   if (results.project) {
-    printSection(`Project [${session.currentProjectSlug}]`, results.project);
+    printSection(`Project [${args.project}]`, results.project);
   } else {
     console.log(chalk.gray("\nNo project open. Run inside a project for pipeline checks."));
   }
@@ -158,44 +163,65 @@ async function checkMedia(args: DoctorArgs) {
   return checks;
 }
 
-async function checkProject(args: DoctorArgs) {
-  const slug = session.currentProjectSlug;
+async function checkProject(args: DoctorArgs, slug: string) {
   const cfg = await loadConfig();
-  if (!slug) return [];
-  const paths = await getProjectPaths(cfg.vault_path!, slug);
+  const vaultPath = resolveVaultPath(cfg);
+  const paths = getProjectPaths(vaultPath, slug);
   const checks = [];
 
   try {
-    const state = await loadProjectState(cfg.vault_path!, slug);
-    if (!state.sourceManifest || Object.keys(state.sourceManifest).length === 0) {
+    if (!existsSync(paths.sourceManifestJson)) {
       checks.push({ name: "Source Integrity", status: "NOT RUN", detail: "No source media" });
     } else {
-      let allMatch = true;
-      for (const [relPath, originalEntry] of Object.entries(state.sourceManifest)) {
-        const fullPath = join(cfg.vault_path!, "Projects", slug, relPath);
-        if (!existsSync(fullPath)) {
-          checks.push({ name: "Source Integrity", status: "FAIL", detail: `Missing file: ${relPath}` });
-          allMatch = false;
-          break;
-        }
-        const originalHash = typeof originalEntry === "string" ? originalEntry : (originalEntry as any).hash;
-        const algorithm = typeof originalEntry === "string" ? (originalHash.length === 32 ? "md5" : "sha256") : (originalEntry as any).algorithm;
-        const currentHash = await hashFileStream(fullPath, algorithm);
-        if (currentHash !== originalHash) {
-          checks.push({ name: "Source Integrity", status: "FAIL", detail: `Hash mismatch for ${relPath}` });
-          allMatch = false;
-          break;
-        }
+      const manifest = await loadSourceManifest(paths.sourceManifestJson);
+      for (const source of manifest.entries) await verifySourceRecord(paths.root, source);
+      checks.push({ name: "Source Integrity", status: "PASS", detail: `${manifest.entries.length} source hashes and boundaries verified` });
+      const sources = new Map(manifest.entries.map((source) => [source.id, source]));
+      if (existsSync(paths.transcriptJson)) {
+        const raw = JSON.parse(await readFile(paths.transcriptJson, "utf8")) as { transcripts?: Array<{ sourceId: string; sourceHash: string; segments: Array<{ start: number; end: number; words?: Array<{ start: number; end: number }> }> }> };
+        const transcripts = raw.transcripts ?? [];
+        const valid = transcripts.every((transcript) => {
+          const source = sources.get(transcript.sourceId);
+          return !!source
+            && source.sha256 === transcript.sourceHash
+            && transcript.segments.every((segment) => segment.start >= 0 && segment.start < segment.end && segment.end <= source.durationSeconds + 1e-6
+              && (segment.words ?? []).every((word) => word.start >= segment.start - 1e-6 && word.start < word.end && word.end <= segment.end + 1e-6));
+        });
+        const wordCount = transcripts.flatMap((transcript) => transcript.segments).reduce((count, segment) => count + (segment.words?.length ?? 0), 0);
+        checks.push({ name: "Transcript", status: valid ? "PASS" : "FAIL", detail: valid ? `${transcripts.length} transcript(s), ${wordCount} timestamped words` : "Invalid source identity or timestamp range" });
+      } else {
+        checks.push({ name: "Transcript", status: "NOT RUN", detail: "No transcript artifact" });
       }
-      if (allMatch) {
-         checks.push({ name: "Source Integrity", status: "PASS", detail: "All hashes match" });
+      if (existsSync(paths.scenesJson)) {
+        const raw = JSON.parse(await readFile(paths.scenesJson, "utf8")) as { analyses?: Array<{ sourceId: string; sourceHash: string; scenes: Array<{ sourceStart: number; sourceEnd: number }> }> };
+        const analyses = raw.analyses ?? [];
+        const valid = analyses.every((analysis) => {
+          const source = sources.get(analysis.sourceId);
+          return !!source && source.sha256 === analysis.sourceHash
+            && analysis.scenes.every((scene) => scene.sourceStart >= 0 && scene.sourceStart < scene.sourceEnd && scene.sourceEnd <= source.durationSeconds + 1e-6);
+        });
+        checks.push({ name: "Scenes", status: valid ? "PASS" : "FAIL", detail: valid ? `${analyses.reduce((count, analysis) => count + analysis.scenes.length, 0)} bounded scene(s)` : "Invalid source identity or scene range" });
+      } else {
+        checks.push({ name: "Scenes", status: "NOT RUN", detail: "No scene artifact" });
+      }
+      if (!existsSync(paths.editPlanJson)) {
+        checks.push({ name: "Edit Plan", status: "NOT RUN", detail: "No edit plan" });
+      } else {
+        const plan = JSON.parse(await readFile(paths.editPlanJson, "utf8")) as EditPlanV1;
+        const validation = validateEditPlan(plan, manifest, paths.root);
+        checks.push({ name: "Edit Plan", status: validation.valid ? "PASS" : "FAIL", detail: validation.valid ? "Deterministic validation passed" : validation.issues.map((issue) => issue.code).join(", ") });
       }
     }
   } catch (err: any) {
     checks.push({ name: "Source Integrity", status: "FAIL", detail: err.message });
   }
-  
-  checks.push({ name: "FCPXML Prerequisites", status: "NOT RUN", detail: "Skipped" });
+
+  if (!existsSync(paths.timelineFcpxml)) {
+    checks.push({ name: "Resolve FCPXML", status: "NOT RUN", detail: "No Resolve export" });
+  } else {
+    const validation = await validateFcpxmlFile(paths.timelineFcpxml);
+    checks.push({ name: "Resolve FCPXML", status: validation.valid ? "PASS" : "FAIL", detail: validation.valid ? "XML structure, rational time, media URIs, and source bounds verified" : validation.errors.join("; ") });
+  }
 
   return checks;
 }
@@ -219,15 +245,19 @@ async function checkIntegrations(args: DoctorArgs) {
   const agv = await getVerifiedAntigravity(args.fix);
   checks.push({ name: "Antigravity Identity", status: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "PASS" : (agv.status === "unsupported" ? "FAIL" : (agv.status === "not_found" ? "FAIL" : "WARN")), detail: agv.installation?.version ? `v${agv.installation.version}` : agv.status });
   checks.push({ name: "Antigravity Protocol Advertised", status: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "PASS" : "WARN", detail: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "JSON Configured" : "None" });
-  checks.push({ name: "Antigravity Transport", status: (agv.status === "operation_verified") ? "PASS" : (agv.status === "transport_ready" ? "WARN" : "FAIL"), detail: "Ready" });
+  checks.push({
+    name: "Antigravity Transport",
+    status: agv.status === "operation_verified" ? "PASS" : agv.status === "transport_ready" ? "WARN" : "FAIL",
+    detail: agv.status === "operation_verified"
+      ? "Transport and at least one operation verified"
+      : agv.status === "transport_ready"
+        ? "Handshake passed; operation verification pending"
+        : `Unavailable (${agv.status})`,
+  });
   
-  if (agv.status === "operation_verified") {
-    checks.push({ name: "Antigravity Image Operation", status: "PASS", detail: "Generated" });
-    checks.push({ name: "Antigravity Thumbnail Operation", status: "PASS", detail: "Generated" });
-  } else {
-    checks.push({ name: "Antigravity Image Operation", status: "NOT RUN", detail: "Transport not verified" });
-    checks.push({ name: "Antigravity Thumbnail Operation", status: "NOT RUN", detail: "Transport not verified" });
-  }
+  const verifiedCapabilities = agv.installation?.verifiedCapabilities;
+  checks.push({ name: "Antigravity Image Operation", status: verifiedCapabilities?.imageGeneration ? "PASS" : "NOT RUN", detail: verifiedCapabilities?.imageGeneration ? `Verified ${verifiedCapabilities.imageGeneration.verifiedAt}` : "No successful image generation recorded" });
+  checks.push({ name: "Antigravity Thumbnail Operation", status: verifiedCapabilities?.thumbnail ? "PASS" : "NOT RUN", detail: verifiedCapabilities?.thumbnail ? `Verified ${verifiedCapabilities.thumbnail.verifiedAt}` : "No successful thumbnail generation recorded" });
 
   // Obsidian
   const vp = cfg.vault_path;
@@ -290,11 +320,11 @@ async function checkIntegrations(args: DoctorArgs) {
        }
     }
 
-    // Bases check
+    // A missing Bases directory is valid; preservation applies when .base files exist.
     if (existsSync(join(vp, "Bases"))) {
       checks.push({ name: "Obsidian Bases", status: "PASS", detail: "Exists" });
     } else {
-      checks.push({ name: "Obsidian Bases", status: "NOT RUN", detail: "Not implemented" });
+      checks.push({ name: "Obsidian Bases", status: "PASS", detail: "No Bases directory is present" });
     }
   } else {
     checks.push({ name: "Vault Structure", status: "FAIL", detail: "Vault does not exist" });

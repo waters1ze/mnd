@@ -7,11 +7,12 @@ import { createProject, listStyles } from "../core/vault.js";
 import { session } from "../repl/loop.js";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
+import { emitResult, isJsonMode } from "../core/output.js";
 
 export const handleCreate: CommandHandler = async (args) => {
   const name = args[0];
   if (!name) {
-    console.log(chalk.yellow("Usage: create \"Project Name\""));
+    emitResult({ ok: false, status: "action_required", error: { code: "PROJECT_NAME_REQUIRED", message: "Usage: /create <project-name>" } }, chalk.yellow("Usage: create \"Project Name\""));
     return;
   }
 
@@ -21,7 +22,7 @@ export const handleCreate: CommandHandler = async (args) => {
 
   let selectedStyle = "default";
 
-  if (styles.length > 0) {
+  if (styles.length > 0 && !isJsonMode()) {
     // Use ink selectorWithPreview
     const { SelectorWithPreview } = await import("../ui/selectorWithPreview.js");
     let done = false;
@@ -54,7 +55,7 @@ export const handleCreate: CommandHandler = async (args) => {
     });
 
     if (chosen) selectedStyle = chosen;
-  } else {
+  } else if (!isJsonMode()) {
     console.log(chalk.gray("No styles found in vault. Using 'default' style."));
     console.log(chalk.gray(`Create style files in: ${vaultPath}/Styles/*.md`));
   }
@@ -62,7 +63,8 @@ export const handleCreate: CommandHandler = async (args) => {
   const slug = await createProject(vaultPath, name, selectedStyle);
   session.currentProjectSlug = slug;
 
-  console.log(chalk.hex(theme.accent)(`✓ Created project: ${name}`));
-  console.log(chalk.gray(`  Slug: ${slug}  Style: ${selectedStyle}`));
-  console.log(chalk.gray(`  Path: ${vaultPath}/Projects/${slug}/`));
+  emitResult(
+    { ok: true, status: "completed", project: { name, slug, style: selectedStyle }, path: `${vaultPath}/Projects/${slug}/` },
+    `${chalk.hex(theme.accent)(`Created project: ${name}`)}\n${chalk.gray(`Slug: ${slug}  Style: ${selectedStyle}`)}\n${chalk.gray(`Path: ${vaultPath}/Projects/${slug}/`)}`,
+  );
 };

@@ -37,10 +37,10 @@ const SKIP = !isPythonAvailable() || !existsSync(SIDECAR_MAIN);
 describe("Python sidecar smoke test", () => {
   let proc: PersistentProcess | null = null;
 
-  afterEach(() => {
-    proc?.stop();
+  afterEach(async () => {
+    await proc?.stop();
     proc = null;
-  });
+  }, 15_000);
 
   (SKIP ? test.skip : test)("starts Python sidecar and receives SIDECAR_READY", async () => {
     const pythonBin = getPythonBin();
