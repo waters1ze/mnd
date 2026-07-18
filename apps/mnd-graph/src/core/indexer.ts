@@ -1,6 +1,15 @@
 import { getFS } from './fs-adapter';
 import { IndexResult, GraphNode, GraphEdge } from './types';
 import { parseMarkdownNote } from './parser';
+function hashCode(str: string): string {
+  let hash = 0;
+  for (let i = 0, len = str.length; i < len; i++) {
+    const chr = str.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+}
 
 export class Indexer {
   private vaultPath: string;
@@ -40,6 +49,7 @@ export class Indexer {
     let entries;
     try {
       entries = await fs.readDir(fullPath);
+      entries.sort((a, b) => a.name.localeCompare(b.name));
     } catch (e) {
       this.diagnostics.push({ path: relativePath, message: `Failed to read dir: ${String(e)}`, severity: 'error' });
       return;
@@ -81,8 +91,8 @@ export class Indexer {
         if (this.nodes.has(id)) {
           this.duplicates.add(id);
           this.diagnostics.push({ path: relativePath, message: `Duplicate ID: ${id}`, severity: 'warn' });
-          // append a suffix to still index it
-          id = `${id}-${Math.random().toString(36).substr(2, 5)}`;
+          // append a suffix to still index it deterministically
+          id = `${id}-${hashCode(relativePath)}`;
         }
 
         const node = parsed as GraphNode;

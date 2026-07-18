@@ -21,6 +21,7 @@ export type NodeType =
   | 'export'
   | 'fcpxml'
   | 'drive_file'
+  | 'mnd'
   | 'unknown';
 
 export interface GraphNode {

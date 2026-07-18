@@ -27,7 +27,16 @@ export async function initTauriFs(): Promise<FSAdapter> {
       return tauriFs.readTextFile(path);
     },
     async writeTextFile(path: string, contents: string) {
-      await tauriFs.writeTextFile(path, contents);
+      const tmpPath = path + '.tmp';
+      await tauriFs.writeTextFile(tmpPath, contents);
+      // Attempt to rename for atomic write
+      if (tauriFs.rename) {
+        await tauriFs.rename(tmpPath, path);
+      } else {
+        // Fallback if rename isn't exported directly
+        await tauriFs.copyFile(tmpPath, path);
+        await tauriFs.remove(tmpPath);
+      }
     },
     async readDir(path: string): Promise<FileInfo[]> {
       const entries = await tauriFs.readDir(path);

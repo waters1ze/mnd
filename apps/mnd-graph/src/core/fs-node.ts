@@ -7,7 +7,9 @@ export const nodeFsAdapter: FSAdapter = {
     return fs.promises.readFile(p, 'utf-8');
   },
   async writeTextFile(p: string, contents: string) {
-    await fs.promises.writeFile(p, contents, 'utf-8');
+    const tmpPath = p + '.tmp';
+    await fs.promises.writeFile(tmpPath, contents, 'utf-8');
+    await fs.promises.rename(tmpPath, p);
   },
   async readDir(p: string): Promise<FileInfo[]> {
     const entries = await fs.promises.readdir(p, { withFileTypes: true });

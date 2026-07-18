@@ -38,6 +38,7 @@ import { handleDoctor } from "./commands/doctor.js";
 import { registerAccountCommands } from "./commands/account.js";
 import { registerSyncCommands } from "./commands/sync.js";
 import { registerUpdateCommands } from "./commands/update.js";
+import { handleGraph } from "./commands/graph.js";
 
 // ─── Startup checks ───────────────────────────────────────────────────────────
 
@@ -139,10 +140,11 @@ async function main(): Promise<void> {
         console.log(chalk.gray([
           "Commands: config, obsidian, open, create, sort, analyze, prompt,",
           "          approve, fix, show history, full new, full show, thumbnail,",
-          "          refactor, rules review, status, backup, restore, login, logout, account",
+          "          refactor, rules review, status, backup, restore, login, logout, account, graph",
         ].join("\n")));
       },
     },
+    { name: "graph", handler: handleGraph },
   ]);
 
   registerAccountCommands();
