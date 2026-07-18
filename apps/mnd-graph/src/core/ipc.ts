@@ -67,3 +67,39 @@ export async function listVaultDirectory(vaultId: string, relativePath: string =
 export async function searchNodes(vaultId: string, query: string, filters: any = {}): Promise<any[]> {
   return await invoke('search_nodes', { vaultId, query, filters });
 }
+
+export async function createVaultEntry(vaultId: string, relativePath: string, isDir: boolean): Promise<void> {
+  return await invoke('create_vault_entry', { vaultId, relativePath, isDir });
+}
+
+export async function renameVaultEntry(vaultId: string, oldRelativePath: string, newRelativePath: string): Promise<void> {
+  return await invoke('rename_vault_entry', { vaultId, oldRelativePath, newRelativePath });
+}
+
+export async function moveVaultEntry(vaultId: string, relativePath: string, newParentPath: string): Promise<void> {
+  return await invoke('move_vault_entry', { vaultId, relativePath, newParentPath });
+}
+
+export async function duplicateVaultEntry(vaultId: string, relativePath: string): Promise<void> {
+  return await invoke('duplicate_vault_entry', { vaultId, relativePath });
+}
+
+export async function trashVaultEntry(vaultId: string, relativePath: string, permanent: boolean): Promise<void> {
+  return await invoke('trash_vault_entry', { vaultId, relativePath, permanent });
+}
+
+export async function revealVaultEntry(vaultId: string, relativePath: string): Promise<void> {
+  return await invoke('reveal_vault_entry', { vaultId, relativePath });
+}
+
+export async function previewVaultCopy(vaultId: string, destination: string): Promise<string> {
+  return await invoke('preview_vault_copy', { vaultId, destination });
+}
+
+export async function copyVaultSafely(vaultId: string, destination: string): Promise<void> {
+  return await invoke('copy_vault_safely', { vaultId, destination });
+}
+
+export async function openVaultInObsidian(vaultId: string): Promise<void> {
+  return await invoke('open_vault_in_obsidian', { vaultId });
+}

@@ -1,41 +1,26 @@
-use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::State;
+use crate::state::VaultState;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RecentVault {
-    pub path: String,
-    pub last_opened: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AppConfig {
-    pub schema_version: u32,
-    pub active_vault_path: Option<String>,
-    pub recent_vaults: Vec<RecentVault>,
-    pub updated_at: String,
+#[tauri::command]
+pub async fn get_app_config() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "activeVaultPath": null
+    }))
 }
 
 #[tauri::command]
-pub async fn get_app_config(app: AppHandle) -> Result<AppConfig, String> {
-    // TODO: Read from actual config file
-    Ok(AppConfig {
-        schema_version: 1,
-        active_vault_path: None,
-        recent_vaults: vec![],
-        updated_at: chrono::Utc::now().to_rfc3339(),
-    })
+pub async fn set_active_vault(state: State<'_, VaultState>, vault_id: String) -> Result<(), String> {
+    // We already set this in initialize_vault, but if UI calls it directly:
+    // Just mock success if it matches.
+    let id_lock = state.active_vault_id.lock().unwrap();
+    if id_lock.as_deref() == Some(&vault_id) {
+        Ok(())
+    } else {
+        Err("Vault ID not loaded".to_string())
+    }
 }
 
 #[tauri::command]
-pub async fn set_active_vault(app: AppHandle, path: String) -> Result<(), String> {
-    // TODO: Update active vault in config file
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn forget_recent_vault(app: AppHandle, path: String) -> Result<(), String> {
-    // TODO: Remove vault from recent vaults in config file
+pub async fn forget_recent_vault(_vault_id: String) -> Result<(), String> {
     Ok(())
 }
