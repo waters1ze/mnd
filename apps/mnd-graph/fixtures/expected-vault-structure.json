@@ -1,0 +1,36 @@
+{
+  "expectedPaths": [
+    "Home.md",
+    "Projects/",
+    "Assets/",
+    "Images/",
+    "Audio/",
+    "B-Roll/",
+    "Thumbnails/",
+    "Transcripts/",
+    "Styles/",
+    "Global_Rules/",
+    "Templates/",
+    "Templates/Project.md",
+    "Templates/Source.md",
+    "Templates/Transcript.md",
+    "Templates/Scene.md",
+    "Templates/Edit Plan.md",
+    "Templates/Asset.md",
+    "Exports/",
+    ".mnd/",
+    ".mnd/vault.json",
+    ".mnd/graph-layout.json",
+    ".mnd/graph-index.sqlite",
+    ".mnd/cache/",
+    ".mnd/manifests/",
+    ".mnd/backups/",
+    ".obsidian/"
+  ],
+  "exactSetNotes": [
+    "Directories ending with / must be created even if empty.",
+    "Existing files must never be overwritten.",
+    "Not counted as violations: SQLite -wal/-shm during open connection, atomic temp files during operation, OS-generated metadata outside app control.",
+    "After cleanup no orphan temp files must remain."
+  ]
+}

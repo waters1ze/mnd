@@ -1,0 +1,77 @@
+{
+  "destinationClassifications": [
+    "missing",
+    "empty_directory",
+    "existing_mnd_vault",
+    "existing_obsidian_vault",
+    "compatible_existing_vault",
+    "unknown_nonempty_directory",
+    "file_not_directory",
+    "drive_root",
+    "inaccessible",
+    "invalid"
+  ],
+  "securityErrorReasons": [
+    "symlink_escape",
+    "junction_escape",
+    "unc_path",
+    "extended_path",
+    "drive_root",
+    "absolute_path_from_frontend",
+    "path_traversal",
+    "reserved_name",
+    "destination_became_symlink",
+    "unicode_normalization_escape"
+  ],
+  "obsidianOpenOutcomes": [
+    "app_not_found",
+    "vault_not_registered",
+    "uri_dispatched",
+    "folder_revealed",
+    "user_action_required",
+    "error"
+  ],
+  "graphSubcommands": [
+    "current",
+    "all",
+    "node",
+    "rebuild",
+    "status"
+  ],
+  "graphErrorOutcomes": [
+    "executable_not_found",
+    "invalid_executable",
+    "vault_not_configured",
+    "invalid_node_id",
+    "rebuild_failure"
+  ],
+  "atomicWriteConflictUIOptions": [
+    "reload_external",
+    "compare",
+    "save_as_copy",
+    "cancel"
+  ],
+  "evidenceClassifications": [
+    "unit",
+    "web_component",
+    "browser_e2e",
+    "filesystem_integration",
+    "rust_native",
+    "tauri_native",
+    "manual",
+    "performance",
+    "source_audit"
+  ],
+  "safeCopyAtomicFinalizationOutcomes": [
+    "success",
+    "atomic_finalization_unavailable"
+  ],
+  "watcherEventTypes": [
+    "create",
+    "modify",
+    "rename",
+    "delete",
+    "overflow",
+    "error"
+  ]
+}

@@ -1,0 +1,823 @@
+{
+  "version": "1.0.0",
+  "gates": {
+    "G01": {
+      "description": "Workspace/build architecture — TypeScript build + Tauri native build succeed",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G01-TS-BUILD",
+          "gate": "G01",
+          "command": "npm run build",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "npm",
+          "expectedTestIds": [],
+          "requiredArtifacts": ["apps/mnd-graph/dist/index.html"],
+          "classification": "unit",
+          "timeout": 120,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G01-TAURI-BUILD",
+          "gate": "G01",
+          "command": "npm run tauri build",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "npm",
+          "expectedTestIds": [],
+          "requiredArtifacts": [],
+          "classification": "tauri_native",
+          "timeout": 600,
+          "mandatory": true,
+          "platform": "windows"
+        },
+        {
+          "evidenceId": "G01-CARGO-CHECK",
+          "gate": "G01",
+          "command": "cargo check",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 120,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G02": {
+      "description": "First-run folder picker — full onboarding with opaque candidateId, classification, preview, confirmation",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G02-RUST-CANDIDATE",
+          "gate": "G02",
+          "command": "cargo test vault_onboarding",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "select_vault_stores_candidate_not_path",
+            "classify_requires_valid_candidate_id",
+            "stale_candidate_id_rejected",
+            "preview_token_expires",
+            "initialize_requires_preview_token"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G02-E2E-ONBOARDING-UI",
+          "gate": "G02",
+          "command": "playwright test onboarding",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "onboarding: shows folder select screen",
+            "onboarding: shows classification after selection",
+            "onboarding: shows initialization preview before mutation",
+            "onboarding: cancel causes zero mutations",
+            "onboarding: confirm creates vault"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G03": {
+      "description": "Destination classification — all 10 enum values tested",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G03-RUST-CLASSIFICATION",
+          "gate": "G03",
+          "command": "cargo test destination_classification",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "classify_missing",
+            "classify_empty_directory",
+            "classify_existing_mnd_vault",
+            "classify_existing_obsidian_vault",
+            "classify_compatible_existing_vault",
+            "classify_unknown_nonempty_directory",
+            "classify_file_not_directory",
+            "classify_drive_root",
+            "classify_inaccessible",
+            "classify_invalid"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G04": {
+      "description": "Vault initialization safety — zero-mutation preview, rollback, no existing file deletion",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G04-RUST-INIT-SAFETY",
+          "gate": "G04",
+          "command": "cargo test vault_init_safety",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "init_cancel_before_preview_causes_zero_mutations",
+            "init_cancel_after_preview_causes_zero_mutations",
+            "init_partial_failure_rollback_removes_only_created_files",
+            "init_rollback_never_deletes_existing_files",
+            "init_preview_token_invalid_after_destination_change"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G04-FS-INTEGRATION",
+          "gate": "G04",
+          "command": "vitest run vault-init",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "vitest",
+          "expectedTestIds": [
+            "vault init: creates exact expected structure on empty dir",
+            "vault init: does not overwrite existing file"
+          ],
+          "requiredArtifacts": [],
+          "classification": "filesystem_integration",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G05": {
+      "description": "Obsidian-compatible structure — exact fixture match",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G05-RUST-STRUCTURE",
+          "gate": "G05",
+          "command": "cargo test vault_structure",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "vault_structure_matches_fixture_exactly"
+          ],
+          "requiredArtifacts": ["apps/mnd-graph/fixtures/expected-vault-structure.json"],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G05-FS-INTEGRATION",
+          "gate": "G05",
+          "command": "vitest run vault-structure",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "vitest",
+          "expectedTestIds": [
+            "vault structure: fixture paths all created",
+            "vault structure: no extra paths created"
+          ],
+          "requiredArtifacts": [],
+          "classification": "filesystem_integration",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G06": {
+      "description": "Markdown/frontmatter model — round-trip preservation with hash evidence",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G06-RUST-ROUNDTRIP",
+          "gate": "G06",
+          "command": "cargo test markdown_roundtrip",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "markdown_unknown_frontmatter_preserved",
+            "markdown_body_edit_does_not_reserialize_yaml",
+            "markdown_line_endings_preserved",
+            "markdown_bom_handled",
+            "markdown_malformed_yaml_not_silently_corrected",
+            "markdown_wikilinks_not_lost",
+            "markdown_new_note_uses_uuid_not_random"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G07": {
+      "description": "Wikilink graph indexer — edges, relations, diagnostics",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G07-RUST-INDEXER",
+          "gate": "G07",
+          "command": "cargo test graph_indexer",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "indexer_creates_edge_for_wikilink",
+            "indexer_handles_unresolved_link",
+            "indexer_records_duplicate_mnd_id_as_diagnostic",
+            "indexer_deterministic_rebuild_produces_same_graph",
+            "indexer_legacy_id_derived_from_normalized_path"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G08": {
+      "description": "SQLite rebuildability — correct path, full schema, migrations, delete+rebuild equivalence",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G08-RUST-SQLITE",
+          "gate": "G08",
+          "command": "cargo test sqlite",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "sqlite_opens_at_vault_mnd_path",
+            "sqlite_schema_has_all_required_tables",
+            "sqlite_migration_runs_in_order",
+            "sqlite_delete_rebuild_produces_equivalent_graph",
+            "sqlite_rebuild_does_not_modify_markdown",
+            "sqlite_rebuild_does_not_modify_base_files",
+            "sqlite_duplicate_mnd_id_written_to_diagnostics",
+            "sqlite_transaction_rollback_on_failure",
+            "sqlite_corruption_recovery"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G09": {
+      "description": "Interactive graph UI — Sigma, pan/zoom, drag, hover, click, details, filters, search",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G09-E2E-GRAPH-UI",
+          "gate": "G09",
+          "command": "playwright test graph-ui",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "graph: sigma container renders nodes",
+            "graph: pan and zoom controls work",
+            "graph: node drag updates position",
+            "graph: drag position persists to graph-layout.json via bridge",
+            "graph: hover card shown on hover",
+            "graph: single click shows details panel",
+            "graph: loading state shown during index",
+            "graph: error state shown on index failure",
+            "graph: empty state shown for empty vault"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G09-RUST-LAYOUT-PERSIST",
+          "gate": "G09",
+          "command": "cargo test graph_layout",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "layout_saved_atomically_to_graph_layout_json",
+            "layout_survives_index_deletion",
+            "layout_stale_positions_removed_on_rebuild"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G10": {
+      "description": "Hover/click/double-click interactions",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G10-E2E-INTERACTIONS",
+          "gate": "G10",
+          "command": "playwright test graph-interactions",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "graph interactions: hover shows card",
+            "graph interactions: single click shows details panel",
+            "graph interactions: double click opens internal viewer or editor",
+            "graph interactions: double click does not only center viewport"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G11": {
+      "description": "Internal viewers — all file types with security constraints",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G11-E2E-VIEWERS",
+          "gate": "G11",
+          "command": "playwright test viewers",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "viewer: markdown renders correctly",
+            "viewer: json shows tree or raw fallback",
+            "viewer: json parse error shows error state",
+            "viewer: xml/fcpxml shows escaped text",
+            "viewer: unsupported binary shows warning and reveal",
+            "viewer: unsupported binary does not launch OS default"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G11-RUST-MEDIA-SECURITY",
+          "gate": "G11",
+          "command": "cargo test media_security",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "media_read_validates_mime_not_only_extension",
+            "media_read_rejects_path_outside_vault",
+            "media_read_rejects_arbitrary_absolute_path"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G12": {
+      "description": "File explorer — tree, CRUD operations, path containment",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G12-E2E-EXPLORER",
+          "gate": "G12",
+          "command": "playwright test file-explorer",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "explorer: renders folder tree",
+            "explorer: create file via bridge succeeds",
+            "explorer: rename via bridge succeeds",
+            "explorer: move via bridge succeeds",
+            "explorer: duplicate via bridge succeeds",
+            "explorer: trash via bridge succeeds",
+            "explorer: reveal calls bridge"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G12-RUST-EXPLORER-CONTAINMENT",
+          "gate": "G12",
+          "command": "cargo test explorer_containment",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "explorer_move_rejects_destination_outside_vault",
+            "explorer_create_rejects_path_traversal",
+            "explorer_rename_rejects_reserved_name",
+            "explorer_trash_creates_recovery_metadata",
+            "explorer_trash_destination_within_vault"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G13": {
+      "description": "Note editor and atomic save with conflict detection",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G13-RUST-ATOMIC-WRITE",
+          "gate": "G13",
+          "command": "cargo test atomic_write",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "atomic_write_replaces_existing_file",
+            "atomic_write_cleans_temp_after_success",
+            "atomic_write_cleans_temp_after_failure",
+            "atomic_write_rejects_external_change_mtime",
+            "atomic_write_rejects_external_change_size",
+            "atomic_write_rejects_external_change_sha256",
+            "atomic_write_preserves_original_on_replace_failure",
+            "atomic_write_injected_failure_at_create",
+            "atomic_write_injected_failure_at_flush",
+            "atomic_write_injected_failure_at_rename",
+            "atomic_write_verifies_reread_sha256",
+            "atomic_write_unique_temp_per_call"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G13-E2E-CONFLICT-UI",
+          "gate": "G13",
+          "command": "playwright test editor-conflict",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "editor: save succeeds when no conflict",
+            "editor: conflict shows four options",
+            "editor: reload external discards edits",
+            "editor: save as copy creates new file",
+            "editor: cancel returns to editor with edits intact",
+            "editor: silent overwrite does not occur"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G14": {
+      "description": "External watcher/conflicts — events, debounce, self-write suppression, dirty conflict",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G14-RUST-WATCHER",
+          "gate": "G14",
+          "command": "cargo test vault_watcher",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "watcher_delivers_create_event",
+            "watcher_delivers_modify_event",
+            "watcher_delivers_rename_event",
+            "watcher_delivers_delete_event",
+            "watcher_debounces_rapid_events",
+            "watcher_suppresses_own_write_not_external",
+            "watcher_does_not_suppress_genuine_external_change",
+            "watcher_overflow_triggers_full_rescan",
+            "watcher_stops_on_vault_switch",
+            "watcher_restarts_on_vault_switch",
+            "watcher_does_not_write_to_user_files"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "windows"
+        }
+      ]
+    },
+    "G15": {
+      "description": "Search/filters/backlinks UI",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G15-E2E-SEARCH",
+          "gate": "G15",
+          "command": "playwright test search-filters",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "search: query returns results",
+            "filter: node-type filter applied",
+            "filter: relation filter applied",
+            "filter: project filter applied",
+            "backlinks: panel shows incoming links"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G16": {
+      "description": "Obsidian opening — typed outcomes, no shell, no global obsidian.json mutation",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G16-RUST-OBSIDIAN-OPEN",
+          "gate": "G16",
+          "command": "cargo test obsidian_open",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "obsidian_open_returns_app_not_found_when_missing",
+            "obsidian_open_returns_vault_not_registered",
+            "obsidian_open_returns_uri_dispatched",
+            "obsidian_open_returns_folder_revealed",
+            "obsidian_open_does_not_use_shell",
+            "obsidian_open_does_not_modify_global_obsidian_json",
+            "obsidian_open_uri_built_without_shell_interpolation"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G16-E2E-OBSIDIAN-UI",
+          "gate": "G16",
+          "command": "playwright test obsidian-open",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "obsidian open: shows result for dispatched outcome",
+            "obsidian open: shows reveal instruction for not_registered outcome"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G17": {
+      "description": "Obsidian Bases preservation — SHA-256 equivalence across all operations",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G17-FS-BASE-PRESERVATION",
+          "gate": "G17",
+          "command": "vitest run bases-preservation",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "vitest",
+          "expectedTestIds": [
+            "bases preservation: init does not change existing .base files",
+            "bases preservation: index rebuild does not change .base files",
+            "bases preservation: sqlite delete+rebuild does not change .base files",
+            "bases preservation: layout save does not change .base files",
+            "bases preservation: vault switch does not change .base files in source vault",
+            "bases preservation: safe copy copies .base files byte-for-byte"
+          ],
+          "requiredArtifacts": [],
+          "classification": "filesystem_integration",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G18": {
+      "description": "MND CLI /graph — all subcommands, executable discovery, no shell",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G18-UNIT-GRAPH-CMD",
+          "gate": "G18",
+          "command": "npm test -- --testPathPattern=graph.test",
+          "workingDirectory": ".",
+          "runner": "npm",
+          "expectedTestIds": [
+            "graph command: current opens vault",
+            "graph command: all opens vault selector",
+            "graph command: node validates id",
+            "graph command: rebuild returns structured result",
+            "graph command: status returns metadata",
+            "graph command: returns executable_not_found when missing",
+            "graph command: returns vault_not_configured when no vault",
+            "graph command: spawns without shell"
+          ],
+          "requiredArtifacts": [],
+          "classification": "unit",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G18-FS-INTEGRATION-DISCOVERY",
+          "gate": "G18",
+          "command": "npm test -- --testPathPattern=graph-discovery.test",
+          "workingDirectory": ".",
+          "runner": "npm",
+          "expectedTestIds": [
+            "graph discovery: prefers packaged path over dev path",
+            "graph discovery: dev path used only in dev mode",
+            "graph discovery: returns executable_not_found when all paths absent"
+          ],
+          "requiredArtifacts": [],
+          "classification": "filesystem_integration",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G19": {
+      "description": "Vault switching and safe copy",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G19-RUST-SWITCH",
+          "gate": "G19",
+          "command": "cargo test vault_switching",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "vault_switch_closes_sqlite_before_switch",
+            "vault_switch_stops_watcher_before_switch",
+            "vault_switch_starts_watcher_after_switch",
+            "vault_switch_invalidates_stale_vault_id",
+            "vault_switch_updates_app_config_atomically"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G19-FS-SAFE-COPY",
+          "gate": "G19",
+          "command": "cargo test safe_copy",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "safe_copy_staging_sibling_to_destination",
+            "safe_copy_verifies_sha256_after_copy",
+            "safe_copy_aborts_if_source_changes",
+            "safe_copy_rejects_nonempty_destination",
+            "safe_copy_rejects_symlink_source",
+            "safe_copy_rejects_symlink_destination",
+            "safe_copy_cleans_staging_on_failure",
+            "safe_copy_atomic_rename_to_destination",
+            "safe_copy_injected_failure_at_write",
+            "safe_copy_injected_failure_at_rename",
+            "safe_copy_returns_atomic_finalization_unavailable_cross_volume"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G19-E2E-SWITCH-UI",
+          "gate": "G19",
+          "command": "playwright test vault-switch",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "playwright",
+          "expectedTestIds": [
+            "vault switch: dirty note prompts save before switch",
+            "vault switch: new graph loads after switch"
+          ],
+          "requiredArtifacts": [],
+          "classification": "browser_e2e",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    },
+    "G20": {
+      "description": "Security/performance/release — full Cargo pipeline, tauri build, path security, perf thresholds, capability audit",
+      "requiredEvidence": [
+        {
+          "evidenceId": "G20-CARGO-FMT",
+          "gate": "G20",
+          "command": "cargo fmt --check",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G20-CARGO-CLIPPY",
+          "gate": "G20",
+          "command": "cargo clippy --all-targets --all-features -- -D warnings",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 120,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G20-CARGO-TEST",
+          "gate": "G20",
+          "command": "cargo test",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 120,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G20-TAURI-BUILD",
+          "gate": "G20",
+          "command": "npm run tauri build",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "npm",
+          "expectedTestIds": [],
+          "requiredArtifacts": [],
+          "classification": "tauri_native",
+          "timeout": 600,
+          "mandatory": true,
+          "platform": "windows"
+        },
+        {
+          "evidenceId": "G20-PATH-SECURITY",
+          "gate": "G20",
+          "command": "cargo test path_security",
+          "workingDirectory": "apps/mnd-graph/src-tauri",
+          "runner": "cargo",
+          "expectedTestIds": [
+            "path_rejects_dotdot_traversal",
+            "path_rejects_absolute_path_from_frontend",
+            "path_rejects_drive_root",
+            "path_rejects_unc_path",
+            "path_rejects_extended_path",
+            "path_rejects_reserved_windows_name",
+            "path_rejects_trailing_dot_or_space",
+            "path_rejects_symlink",
+            "path_rejects_dangling_symlink",
+            "path_rejects_directory_junction",
+            "path_rejects_symlinked_parent",
+            "path_rejects_destination_became_symlink_between_validate_and_write",
+            "path_rejects_unicode_normalization_escape",
+            "path_rejects_alternate_separator",
+            "path_rejects_nested_traversal_after_normalization"
+          ],
+          "requiredArtifacts": [],
+          "classification": "rust_native",
+          "timeout": 60,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G20-SOURCE-AUDIT-SHELL",
+          "gate": "G20",
+          "command": "node scripts/source-audit.mjs",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "node",
+          "expectedTestIds": [],
+          "requiredArtifacts": ["apps/mnd-graph/source-audit-report.json"],
+          "classification": "source_audit",
+          "timeout": 30,
+          "mandatory": true,
+          "platform": "all"
+        },
+        {
+          "evidenceId": "G20-PERFORMANCE",
+          "gate": "G20",
+          "command": "node scripts/perf-benchmarks.mjs",
+          "workingDirectory": "apps/mnd-graph",
+          "runner": "node",
+          "expectedTestIds": [],
+          "requiredArtifacts": ["apps/mnd-graph/perf-report.json"],
+          "classification": "performance",
+          "timeout": 300,
+          "mandatory": true,
+          "platform": "all"
+        }
+      ]
+    }
+  }
+}

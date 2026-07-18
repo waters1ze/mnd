@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "title": "MND Graph Vault Release Manifest",
+  "description": "Defines the required evidence items for each release gate G01-G20.",
+  "type": "object",
+  "properties": {
+    "version": { "type": "string" },
+    "gates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description", "requiredEvidence"],
+        "properties": {
+          "description": { "type": "string" },
+          "requiredEvidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["evidenceId", "gate", "command", "workingDirectory", "runner", "expectedTestIds", "requiredArtifacts", "classification", "timeout", "mandatory", "platform"],
+              "properties": {
+                "evidenceId": { "type": "string" },
+                "gate": { "type": "string" },
+                "command": { "type": "string" },
+                "workingDirectory": { "type": "string" },
+                "runner": { "enum": ["cargo", "vitest", "playwright", "node", "npm", "shell_prohibited", "source_audit"] },
+                "expectedTestIds": { "type": "array", "items": { "type": "string" } },
+                "requiredArtifacts": { "type": "array", "items": { "type": "string" } },
+                "classification": {
+                  "enum": ["unit", "web_component", "browser_e2e", "filesystem_integration", "rust_native", "tauri_native", "manual", "performance", "source_audit"]
+                },
+                "timeout": { "type": "integer" },
+                "mandatory": { "type": "boolean" },
+                "platform": { "enum": ["all", "windows", "macos", "linux"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
