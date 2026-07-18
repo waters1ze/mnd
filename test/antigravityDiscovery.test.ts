@@ -85,7 +85,7 @@ describe("antigravityDiscovery", () => {
     expect(res.status).toBe("transport_ready");
   });
 
-  it("verifies protocol via --help and starts process", async () => {
+  it("RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY verifies protocol via --help and starts process", async () => {
     const res = await getVerifiedAntigravity(true);
     expect(res.status).toBe("transport_ready");
   });

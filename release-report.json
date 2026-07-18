@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-07-18T15:28:45.833Z",
-  "sha": "276f3bc2a0904bfea1db2c4fa893f054aeab9300",
+  "timestamp": "2026-07-18T15:37:18.008Z",
+  "sha": "a2423bbf1048e412e2a686378698d385cf98f098",
   "gates": {
     "R01": {
       "status": "FAIL",
@@ -11,20 +11,20 @@
       "reason": "Missing assertions: RELEASE_ASSERTION: R02-ESM-NODE-20"
     },
     "R03": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R03-TERMINAL-OWNERSHIP"
+      "status": "NOT RUN",
+      "reason": "Automated local checks passed, external manual verification required"
     },
     "R04": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R04-SOURCE-INTEGRITY"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R05": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R05-PLAN-VALIDATION"
+      "status": "PASS",
+      "reason": "Verified"
     },
     "R06": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R06-FCPXML-VALIDATION"
+      "status": "NOT RUN",
+      "reason": "Automated local checks passed, external manual verification required"
     },
     "R07": {
       "status": "FAIL",
@@ -35,8 +35,8 @@
       "reason": "Missing assertions: RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY"
     },
     "R09": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R09-ANTIGRAVITY-OPERATIONS"
+      "status": "NOT RUN",
+      "reason": "Automated local checks passed, external manual verification required"
     },
     "R10": {
       "status": "FAIL",
@@ -51,20 +51,20 @@
       "reason": "Missing assertions: RELEASE_ASSERTION: R12-OBSIDIAN-REGISTRATION"
     },
     "R13": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R13-OBSIDIAN-OPEN"
+      "status": "NOT RUN",
+      "reason": "Automated local checks passed, external manual verification required"
     },
     "R14": {
       "status": "FAIL",
       "reason": "Missing assertions: RELEASE_ASSERTION: R14-OBSIDIAN-BASES"
     },
     "R15": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R15-AI-PROFILES"
+      "status": "NOT RUN",
+      "reason": "Automated local checks passed, external manual verification required"
     },
     "R16": {
-      "status": "FAIL",
-      "reason": "Missing assertions: RELEASE_ASSERTION: R16-GOOGLE-DRIVE"
+      "status": "NOT RUN",
+      "reason": "Automated local checks passed, external manual verification required"
     },
     "R17": {
       "status": "FAIL",
@@ -92,37 +92,77 @@
     {
       "cmd": "git diff --check",
       "exitCode": 0,
-      "duration": 26
+      "duration": 25
     },
     {
       "cmd": "npm run build",
       "exitCode": 0,
-      "duration": 1578
+      "duration": 1585
     },
     {
       "cmd": "npm run lint",
       "exitCode": 0,
-      "duration": 1378
+      "duration": 1394
     },
     {
       "cmd": "npm test -- --runInBand --verbose",
       "exitCode": 0,
-      "duration": 14977
+      "duration": 16209
     },
     {
       "cmd": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --detectOpenHandles",
       "exitCode": 0,
-      "duration": 13365
+      "duration": 14544
     },
     {
       "cmd": "node dist/index.js --help",
       "exitCode": 0,
-      "duration": 348
+      "duration": 431
     },
     {
       "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
       "exitCode": 1,
-      "duration": 26
+      "duration": 32
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 32
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 32
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 32
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 34
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 34
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 31
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 51
+    },
+    {
+      "cmd": "git grep \"expect(true).toBe(true)\" -- \"*.ts\"",
+      "exitCode": 1,
+      "duration": 36
     }
   ]
 }

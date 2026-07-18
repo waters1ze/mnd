@@ -29,7 +29,7 @@ jest.mock("node:crypto", () => ({
 }));
 
 describe("obsidianRegistration", () => {
-  it("registers a new vault securely", async () => {
+  it("RELEASE_ASSERTION: R12-OBSIDIAN-REGISTRATION registers a new vault securely", async () => {
     process.env.APPDATA = "C:\\FakeAppData";
     const res = await registerVaultSafely("C:\\Test");
     console.log(res);

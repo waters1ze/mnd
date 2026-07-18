@@ -52,7 +52,7 @@ jest.mock("node:fs/promises", () => ({
 }));
 
 describe("obsidianSetup", () => {
-  it("initializes vault and saves config", async () => {
+  it("RELEASE_ASSERTION: R11-OBSIDIAN-SETUP initializes vault and saves config", async () => {
     await handleObsidian([], "/obsidian");
     const config = require("../src/core/config.js");
     expect(config.updateConfigField).toHaveBeenCalled();

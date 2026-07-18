@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 
 describe("ESM Smoke Test", () => {
-  it("should execute dist/index.js --help without ESM errors", () => {
+  it("RELEASE_ASSERTION: R19-BUILT-CLI should execute dist/index.js --help without ESM errors", () => {
     const indexPath = resolve(process.cwd(), "dist/index.js");
     if (!existsSync(indexPath)) {
       throw new Error("dist/index.js does not exist. Please run build first.");
@@ -20,7 +20,7 @@ describe("ESM Smoke Test", () => {
     }
   });
 
-  it("should be able to import dist/integrations/obsidian.js and use normalizeObsidianVaultInput", async () => {
+  it("RELEASE_ASSERTION: R02-ESM-NODE-20 should be able to import dist/integrations/obsidian.js and use normalizeObsidianVaultInput", async () => {
     const modulePath = resolve(process.cwd(), "dist/integrations/obsidian.js");
     if (!existsSync(modulePath)) {
       throw new Error("dist/integrations/obsidian.js does not exist.");

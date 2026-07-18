@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 describe("ensureVaultStructure()", () => {
-  test("creates all required directories", async () => {
+  test("RELEASE_ASSERTION: R14-OBSIDIAN-BASES creates all required directories", async () => {
     await ensureVaultStructure(tmpVault);
     const { existsSync } = await import("node:fs");
     expect(existsSync(join(tmpVault, "Global_Rules"))).toBe(true);

@@ -27,7 +27,7 @@ describe("Config V1 -> V2 Migration", () => {
     }
   });
 
-  it("should migrate v1 to v2 correctly", async () => {
+  it("RELEASE_ASSERTION: R01-CONFIG-MIGRATIONS should migrate v1 to v2 correctly", async () => {
     const v1Config = {
       version: 1,
       profile: "hybrid",

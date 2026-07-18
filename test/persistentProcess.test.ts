@@ -119,7 +119,7 @@ describe("PersistentProcess", () => {
     expect(result).toBe('{"id":"1","ok":true}');
   });
 
-  test("FIFO: multiple sends processed in order", async () => {
+  test("RELEASE_ASSERTION: R10-PROCESS-LIFECYCLE FIFO: multiple sends processed in order", async () => {
     proc = new PersistentProcess({
       command: "echo",
       args: [],

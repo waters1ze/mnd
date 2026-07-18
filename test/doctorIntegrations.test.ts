@@ -37,7 +37,7 @@ describe("doctorIntegrations", () => {
     logSpy.mockRestore();
   });
 
-  it("produces valid json without unrelated stdout and accurately reflects states", async () => {
+  it("RELEASE_ASSERTION: R07-DOCTOR-TRUTHFUL produces valid json without unrelated stdout and accurately reflects states", async () => {
     await handleDoctor(["--json"], "doctor --json");
     
     // Exactly one call to console.log is expected with JSON
