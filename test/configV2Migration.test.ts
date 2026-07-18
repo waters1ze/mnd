@@ -57,6 +57,35 @@ describe("Config V1 -> V2 Migration", () => {
     expect(migrated.obsidian.initialized).toBe(false);
   });
 
+  it("should handle v2 with legacy field gracefully", async () => {
+    const v2ConfigLegacy = {
+      version: 2,
+      profile: "hybrid",
+      vault_path: "C:\\Vault",
+      models: {
+        hybrid: { image_gen: {} },
+        local: { image_gen: {} }
+      },
+      connections: {
+        antigravity_cli_path: "C:\\path\\to\\antigravity_v2.exe",
+      },
+      obsidian: {
+        initialized: true,
+      }
+    };
+    await writeFile(configPath, YAML.stringify(v2ConfigLegacy), "utf-8");
+
+    await runConfigMigrations();
+
+    const migratedRaw = await readFile(configPath, "utf-8");
+    const migrated = YAML.parse(migratedRaw);
+
+    expect(migrated.version).toBe(2);
+    expect(migrated.connections.antigravity).toBeDefined();
+    expect(migrated.connections.antigravity.cached_executable_path).toBe("C:\\path\\to\\antigravity_v2.exe");
+    expect(migrated.connections.antigravity_cli_path).toBeUndefined();
+  });
+
   it("should handle already v2 configs idempotently", async () => {
     const v2Config = {
       version: 2,
@@ -114,13 +143,14 @@ describe("Config V1 -> V2 Migration", () => {
       connections: { antigravity_cli_path: "antigravity" },
     };
     await writeFile(configPath, YAML.stringify(v1Config), "utf-8");
-    await expect(runConfigMigrations()).rejects.toThrow(/Invalid vault_path/);
+    
+    await expect(runConfigMigrations()).rejects.toThrow("Migration failed: Invalid vault_path");
     const rolledBackRaw = await readFile(configPath, "utf-8");
     const rolledBack = YAML.parse(rolledBackRaw);
     expect(rolledBack.version).toBe(1);
   });
 
-  it("should throw error on malformed config", async () => {
+  it("should handle malformed config gracefully", async () => {
     await writeFile(configPath, "INVALID YAML : [ : {", "utf-8");
     await expect(runConfigMigrations()).rejects.toThrow(/Malformed YAML/);
   });

@@ -32,8 +32,7 @@ export async function runConfigMigrations(): Promise<void> {
   if (currentVersion === LATEST_CONFIG_VERSION && !requiresLegacyRepair) return;
 
   if (currentVersion > LATEST_CONFIG_VERSION) {
-    console.log(chalk.red(`\n[!] Config version ${currentVersion} is newer than supported version ${LATEST_CONFIG_VERSION}. Please update MND.`));
-    process.exit(1);
+    throw new Error(`Config version ${currentVersion} is newer than supported version ${LATEST_CONFIG_VERSION}. Please update MND.`);
   }
 
   if (currentVersion !== LATEST_CONFIG_VERSION) {
@@ -49,28 +48,9 @@ export async function runConfigMigrations(): Promise<void> {
   // Migrations registry
   if (currentVersion < 1) {
     migrated.version = 1;
-    // v0 -> v1 changes if any
   }
   if (currentVersion < 2) {
     migrated.version = 2;
-    // Migrate Antigravity path
-    if (migrated.connections?.antigravity_cli_path) {
-      migrated.connections.antigravity = {
-        discovery_mode: "auto",
-        cached_executable_path: migrated.connections.antigravity_cli_path,
-        cached_version: null,
-        last_verified_at: null,
-      };
-      delete migrated.connections.antigravity_cli_path;
-    } else if (migrated.connections && !migrated.connections.antigravity) {
-      migrated.connections.antigravity = {
-        discovery_mode: "auto",
-        cached_executable_path: null,
-        cached_version: null,
-        last_verified_at: null,
-      };
-    }
-
     // Initialize Obsidian section
     if (!migrated.obsidian) {
       migrated.obsidian = {
@@ -79,6 +59,28 @@ export async function runConfigMigrations(): Promise<void> {
         home_note: "Home.md",
         last_verified_at: null,
       };
+    }
+  }
+
+  // Schema Repairs (independent of version jumps)
+  if (requiresLegacyRepair) {
+    const legacyPath = migrated.connections?.antigravity_cli_path;
+    if (!migrated.connections) {
+      migrated.connections = {};
+    }
+
+    if (migrated.connections.antigravity && typeof migrated.connections.antigravity === "object") {
+      // Conflict policy: New object exists. Preserve it, just delete the old field.
+      delete migrated.connections.antigravity_cli_path;
+    } else {
+      // Missing new object: Create it as unverified discovery candidate
+      migrated.connections.antigravity = {
+        discovery_mode: "auto",
+        cached_executable_path: legacyPath,
+        cached_version: null,
+        last_verified_at: null,
+      };
+      delete migrated.connections.antigravity_cli_path;
     }
   }
 
@@ -137,8 +139,7 @@ export async function runVaultMigrations(vaultPath: string): Promise<void> {
   if (currentVersion === LATEST_VAULT_VERSION) return;
   
   if (currentVersion > LATEST_VAULT_VERSION) {
-    console.log(chalk.red(`\n[!] Vault version ${currentVersion} is newer than supported version ${LATEST_VAULT_VERSION}. Please update MND.`));
-    process.exit(1);
+    throw new Error(`Vault version ${currentVersion} is newer than supported version ${LATEST_VAULT_VERSION}. Please update MND.`);
   }
   
   console.log(chalk.yellow(`\n[MIGRATION] Upgrading vault from v${currentVersion} to v${LATEST_VAULT_VERSION}...`));
@@ -168,7 +169,7 @@ export async function runVaultMigrations(vaultPath: string): Promise<void> {
       const backupRaw = await readFile(backupPath, "utf-8");
       await atomicWriteFile(vaultMetaPath, backupRaw);
     }
-    process.exit(1);
+    throw new Error(`Vault migration failed: ${e.message}`);
   }
   console.log(chalk.green("✓ Vault migration successful."));
 }

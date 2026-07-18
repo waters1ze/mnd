@@ -81,9 +81,7 @@ export async function loadConfig(): Promise<MndConfig> {
       await runConfigMigrations();
       _migrationsRan = true;
     } catch (e: any) {
-      console.error(`\n[FATAL] Config migration failed: ${e.message}`);
-      console.error(`Please fix or backup ${CONFIG_PATH} manually.`);
-      process.exit(1);
+      throw new Error(`Config migration failed: ${e.message}. Please fix or backup ${CONFIG_PATH} manually.`);
     }
   }
 

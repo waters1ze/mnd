@@ -108,6 +108,7 @@ export class PersistentProcess {
 
       this.child.on("error", (err) => {
         console.error(chalk.red(`[${this.name}] Process error: ${err.message}`));
+        if (this.child) terminateOwnedProcessTree(this.child, { force: true }).catch(() => {});
       });
 
       this.child.on("exit", (code) => {
@@ -117,6 +118,7 @@ export class PersistentProcess {
           if (process.env["MND_DEBUG"]) {
             console.warn(chalk.yellow(`[${this.name}] exited with code ${code}, scheduling restart`));
           }
+          if (this.child) terminateOwnedProcessTree(this.child, { force: true }).catch(() => {});
           this.child = null;
           this.scheduleRestart();
         }

@@ -1,4 +1,5 @@
-import { open, readFile, unlink, writeFile } from "node:fs/promises";
+import { open, readFile, unlink, writeFile, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { hostname } from "node:os";
 import { getProjectPaths } from "./projectPaths.js";
@@ -96,8 +97,7 @@ export async function acquireProjectLock(vaultPath: string, slug: string, runId:
   }
 
   try {
-    const { dirname } = require("node:path");
-    const { mkdir } = require("node:fs/promises");
+    
     await mkdir(dirname(paths.lockJson), { recursive: true });
     const handle = await open(paths.lockJson, "wx");
     try {

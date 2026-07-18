@@ -93,7 +93,12 @@ export async function classifyAsset(filePath: string): Promise<AssetClassificati
   
   const req = JSON.stringify({ action: "classify", payload: { filePath } });
   const resp = await proc.send(req);
-  const parsed = JSON.parse(resp) as AssetClassification;
+  let parsed: any;
+  try {
+    parsed = JSON.parse(resp);
+  } catch (err) {
+    throw new Error("Invalid JSON response from Antigravity: " + (err as Error).message);
+  }
   if (!parsed || typeof parsed.type !== "string" || !Array.isArray(parsed.tags)) {
     throw new Error("Invalid response format from Antigravity: missing type or tags");
   }
@@ -118,7 +123,12 @@ export async function generateThumbnail(spec: ThumbnailSpec): Promise<string> {
   
   const req = JSON.stringify({ action: "thumbnail", payload });
   const resp = await proc.send(req);
-  const parsed = JSON.parse(resp) as { outputPath: string };
+  let parsed: any;
+  try {
+    parsed = JSON.parse(resp);
+  } catch (err) {
+    throw new Error("Invalid JSON response from Antigravity: " + (err as Error).message);
+  }
   if (!parsed || typeof parsed.outputPath !== "string") {
     throw new Error("Invalid response format from Antigravity: missing outputPath");
   }
@@ -143,7 +153,12 @@ export async function generateImage(prompt: string): Promise<string> {
   
   const req = JSON.stringify({ action: "generate_image", payload });
   const resp = await proc.send(req);
-  const parsed = JSON.parse(resp) as { outputPath: string };
+  let parsed: any;
+  try {
+    parsed = JSON.parse(resp);
+  } catch (err) {
+    throw new Error("Invalid JSON response from Antigravity: " + (err as Error).message);
+  }
   if (!parsed || typeof parsed.outputPath !== "string") {
     throw new Error("Invalid response format from Antigravity: missing outputPath");
   }

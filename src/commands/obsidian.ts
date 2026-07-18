@@ -4,7 +4,7 @@ import { loadConfig, saveConfig, updateConfigField, resolveVaultPath } from "../
 import { getRegisteredVaultId, registerVaultSafely, openRegisteredVault, launchObsidianApp, normalizeObsidianVaultInput } from "../integrations/obsidian.js";
 import { writeFileSync, existsSync } from "node:fs";
 import { mkdir, cp, rm, readdir, stat, readFile, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
@@ -58,6 +58,22 @@ async function performSetup(cfg: any) {
     return;
   }
 
+  // Check if Obsidian is running
+  const isRunning = await new Promise<boolean>((resolve) => {
+    import("node:child_process").then(({ exec }) => {
+      const cmd = process.platform === "win32" ? 'tasklist /FI "IMAGENAME eq Obsidian.exe" /NH' : 'pgrep -x "obsidian"';
+      exec(cmd, (err, stdout) => {
+        if (err) return resolve(false);
+        resolve(stdout.toLowerCase().includes("obsidian"));
+      });
+    });
+  });
+
+  if (isRunning) {
+    console.log(chalk.red("✗ Obsidian is currently running. Please close it before running setup, as we cannot safely modify its global configuration."));
+    return;
+  }
+
   let choice: string | symbol = "empty";
 
   // Handle conflicting nonempty vault logic if moving from an old path
@@ -88,7 +104,7 @@ async function performSetup(cfg: any) {
   console.log(chalk.white(`\nThe following will be created in ${targetPath}:`));
   console.log(chalk.gray("• .obsidian/\n• Home.md\n• Projects/\n• Assets/\n• Global_Rules/\n• Styles/\n• Skills/\n"));
 
-  const init = await confirm({ message: "Initialize?", initialValue: true });
+  const init = await confirm({ message: "Ready to proceed with global setup?", initialValue: true });
   if (!init) {
     console.log(chalk.gray("Setup cancelled."));
     return;
@@ -121,8 +137,11 @@ async function performSetup(cfg: any) {
             
             // Check boundary escape (junctions or hardlinks)
             const pReal = realpathSync(p);
-            if (!pReal.startsWith(sourceReal) && dir === cfg.vault_path) {
-                throw new Error(`File escaped vault boundaries: ${pReal}`);
+            if (dir === cfg.vault_path) {
+                const relPath = relative(sourceReal, pReal);
+                if (relPath.startsWith("..") || isAbsolute(relPath)) {
+                  throw new Error(`File escaped vault boundaries: ${pReal}`);
+                }
             }
 
             if (st.isDirectory()) {

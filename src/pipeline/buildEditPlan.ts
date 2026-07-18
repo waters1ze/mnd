@@ -10,6 +10,7 @@ import {
 } from "../core/projectState.js";
 import type { EditPlan, TranscriptSegment, Cut, ProjectState } from "../types/pipeline.js";
 import type { MatchedContext } from "./matchStyleRules.js";
+import { getMediaDuration } from "../core/ffprobe.js";
 
 const SYSTEM_PROMPT = `You are an expert video editor assistant. Given a transcript, frame analysis, style guide, and editing rules, produce an EditPlan JSON object.
 
@@ -129,6 +130,32 @@ export async function buildEditPlanStep(
     createdAt: new Date().toISOString(),
     version,
   };
+
+  const duration = await getMediaDuration(videoPath);
+  
+  // Validate cuts
+  for (const cut of editPlan.cuts) {
+    if (cut.startSec < 0) cut.startSec = 0;
+    if (cut.endSec < 0) cut.endSec = 0;
+    if (cut.startSec >= cut.endSec) {
+      throw new Error(`Invalid cut ${cut.id}: zero or negative duration (${cut.startSec} to ${cut.endSec})`);
+    }
+    if (duration !== null && cut.endSec > duration) {
+      throw new Error(`Invalid cut ${cut.id}: ends beyond source duration (${cut.endSec} > ${duration})`);
+    }
+  }
+
+  // Validate overlays
+  for (const overlay of editPlan.overlays) {
+    if (overlay.startSec < 0) overlay.startSec = 0;
+    if (overlay.endSec < 0) overlay.endSec = 0;
+    if (overlay.startSec >= overlay.endSec) {
+      throw new Error(`Invalid overlay ${overlay.id}: zero or negative duration (${overlay.startSec} to ${overlay.endSec})`);
+    }
+    if (duration !== null && overlay.endSec > duration) {
+      throw new Error(`Invalid overlay ${overlay.id}: ends beyond source duration (${overlay.endSec} > ${duration})`);
+    }
+  }
 
   state.editPlan = editPlan;
   cacheStepOutput(state, "plan", editPlan);

@@ -82,7 +82,7 @@ async function checkSync(args: DoctorArgs) {
   
   if (!summary || summary.status === "logged_out") {
     return [
-      { name: "Drive Sync", status: "WARN", detail: "Not logged in" },
+      { name: "Drive Sync", status: "NOT RUN", detail: "Not logged in" },
     ];
   }
 
@@ -129,6 +129,7 @@ function printSection(title: string, checks: any[]) {
   console.log(chalk.cyan(`\n${title}`));
   for (const check of checks) {
     const icon = check.status === "PASS" ? chalk.green("✓") : 
+                 check.status === "NOT RUN" ? chalk.gray("○") :
                  check.status === "WARN" ? chalk.yellow("⚠") : 
                  chalk.red("✗");
     console.log(`  ${icon} ${check.name.padEnd(15)} ${chalk.gray(check.detail)}`);
@@ -170,9 +171,9 @@ async function checkIntegrations(args: DoctorArgs) {
        checks.push({ name: "AG Capabilities", status: "PASS", detail: `${reportedModels.length} models reported` });
     }
   } else if (agv.status === "unsupported") {
-    checks.push({ name: "Antigravity", status: "WARN", detail: "Desktop app found without CLI protocol" });
+    checks.push({ name: "Antigravity", status: "NOT RUN", detail: "Desktop app found without CLI protocol" });
   } else {
-    checks.push({ name: "Antigravity", status: "WARN", detail: "Not found or missing capabilities" });
+    checks.push({ name: "Antigravity", status: "NOT RUN", detail: "Not found or missing capabilities" });
   }
 
   // Obsidian

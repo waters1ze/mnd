@@ -1,28 +1,39 @@
 import { releaseInkStdin, TtyAdapter } from "../src/ui/tty.js";
 
 describe("TtyOwnershipCoordinator / releaseInkStdin", () => {
-  it("should release Ink and restore stdin state via adapter", async () => {
+  it("should release Ink and restore stdin state in exact order: waitUntilExit -> yield -> setRawMode(false) -> resume", async () => {
     let rawModeState = true;
     let resumed = false;
+    const executionOrder: string[] = [];
 
     const mockAdapter: TtyAdapter = {
       isTTY: true,
-      setRawMode: jest.fn((enabled) => { rawModeState = enabled; }),
-      resume: jest.fn(() => { resumed = true; }),
+      setRawMode: jest.fn((enabled) => { 
+        rawModeState = enabled; 
+        executionOrder.push("setRawMode");
+      }),
+      resume: jest.fn(() => { 
+        resumed = true; 
+        executionOrder.push("resume");
+      }),
       pause: jest.fn()
     };
 
-    let promiseResolved = false;
     const waitUntilExitPromise = new Promise<void>((resolve) => {
-      setTimeout(() => {
-        promiseResolved = true;
+      setImmediate(() => {
+        executionOrder.push("waitUntilExit");
         resolve();
-      }, 10);
+      });
     });
 
     await releaseInkStdin(waitUntilExitPromise, mockAdapter);
 
-    expect(promiseResolved).toBe(true);
+    expect(executionOrder).toEqual([
+      "waitUntilExit",
+      "setRawMode",
+      "resume"
+    ]);
+
     expect(mockAdapter.setRawMode).toHaveBeenCalledWith(false);
     expect(rawModeState).toBe(false);
     expect(mockAdapter.resume).toHaveBeenCalled();

@@ -1,7 +1,7 @@
 // src/integrations/obsidian.ts
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, resolve, normalize } from "node:path";
+import { join, resolve, normalize, isAbsolute } from "node:path";
 import { spawn } from "node:child_process";
 import { backupFile, atomicWriteFile } from "../core/atomic.js";
 import { getAppDataDir } from "../core/paths.js";
@@ -33,8 +33,8 @@ export function normalizeObsidianVaultInput(input: string): string {
   p = p.replace(/%([^%]+)%/g, (match, v) => process.env[v] || match);
   
   // Make relative paths absolute based on current directory
-  if (!require("node:path").isAbsolute(p)) {
-    p = require("node:path").resolve(p);
+  if (!isAbsolute(p)) {
+    p = resolve(p);
   }
 
   p = normalizeVaultPath(p);
