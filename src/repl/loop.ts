@@ -155,6 +155,9 @@ export async function startRepl(): Promise<void> {
       await appendHistory(trimmed, cmdDef?.sensitive);
 
     } catch (err) {
+      const { stopProgress } = await import("../ui/progressBar.js");
+      stopProgress();
+      
       const msg = err instanceof Error ? err.message : String(err);
       console.error(chalk.red(`Error: ${msg}`));
     } finally {
