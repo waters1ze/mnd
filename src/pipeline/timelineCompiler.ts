@@ -89,12 +89,29 @@ export function compileTimeline(
         .filter((clip) => clip.enabled)
         .sort((left, right) => left.timelineStart - right.timelineStart || left.id.localeCompare(right.id))
         .map((clip) => {
-          const sourceStartFrames = secondsToFrames(clip.sourceStart, fps);
-          const sourceEndFrames = secondsToFrames(clip.sourceEnd, fps);
+          let sourceStartFrames = secondsToFrames(clip.sourceStart, fps);
+          let sourceEndFrames = secondsToFrames(clip.sourceEnd, fps);
           const timelineStartFrames = secondsToFrames(clip.timelineStart, fps);
           const timelineEndFrames = secondsToFrames(clip.timelineEnd, fps);
-          const sourceDurationFrames = sourceEndFrames - sourceStartFrames;
+          let sourceDurationFrames = sourceEndFrames - sourceStartFrames;
           const timelineDurationFrames = timelineEndFrames - timelineStartFrames;
+          
+          if (clip.speed === 1 && sourceDurationFrames !== timelineDurationFrames) {
+            const exactSourceStart = clip.sourceStart * fps.numerator / fps.denominator;
+            const exactSourceEnd = clip.sourceEnd * fps.numerator / fps.denominator;
+            const diff = timelineDurationFrames - sourceDurationFrames;
+            
+            const startError = Math.abs(exactSourceStart - (sourceStartFrames - diff));
+            const endError = Math.abs(exactSourceEnd - (sourceEndFrames + diff));
+            
+            if (startError < endError && sourceStartFrames - diff >= 0) {
+              sourceStartFrames -= diff;
+            } else {
+              sourceEndFrames += diff;
+            }
+            sourceDurationFrames = timelineDurationFrames;
+          }
+
           if (sourceDurationFrames <= 0 || timelineDurationFrames <= 0) {
             throw new Error(`Clip ${clip.id} collapses to zero frames at ${fps.numerator}/${fps.denominator} fps`);
           }
