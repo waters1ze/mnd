@@ -198,6 +198,7 @@ async function chooseWindowsFolder(): Promise<string | null> {
   }
 
   const script = [
+    "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)",
     "Add-Type -AssemblyName System.Windows.Forms",
     "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
     "$dialog.Description = 'Select the folder with source media for MND'",
