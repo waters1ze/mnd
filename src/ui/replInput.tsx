@@ -259,6 +259,21 @@ export function ReplInput({ promptText, initialInput = "", onSubmit }: ReplInput
         }
       });
 
+      // Project names are visible before Enter: typing /open is enough to see
+      // what can be opened, while Enter still opens the richer selector.
+      if (input.trim().toLowerCase() === "/open") {
+        const projects = CURRENT_CONTEXT.projects ?? [];
+        lines.push(pad(chalk.hex(theme.accent)("  Projects"), 58));
+        if (projects.length === 0) {
+          lines.push(pad(chalk.gray("    No projects found. Use /create first."), 58));
+        } else {
+          for (const project of projects.slice(0, 5)) {
+            lines.push(pad(`    ◇  ${project.title}  ${chalk.gray(`[${project.slug}] · ${project.status}`)}`, 58));
+          }
+          if (projects.length > 5) lines.push(pad(chalk.gray(`    + ${projects.length - 5} more projects`), 58));
+        }
+      }
+
       if (endIdx < filtered.length) lines.push(pad("  ...", 58));
     }
   }

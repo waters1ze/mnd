@@ -26,6 +26,7 @@ export interface CommandContext {
     hasValidPlan: boolean;
     hasValidExport: boolean;
   };
+  projects?: Array<{ slug: string; title: string; status: string }>;
   services: {
     groq: "ready" | "offline" | "unknown";
     ollama: "ready" | "offline" | "unknown";
@@ -65,6 +66,7 @@ export function updateCommandContext(ctx: CommandContext) {
 export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "open", slash: "/open", icon: "▸", description: "Open an existing project", acceptsArgs: true },
   { name: "create", slash: "/create", icon: "+", description: "Create a new project", acceptsArgs: true },
+  { name: "delete", slash: "/delete", icon: "×", description: "Permanently delete a project", acceptsArgs: true },
   { name: "project", slash: "/project", icon: "#", description: "Show the active project model", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
   { name: "add", slash: "/add", icon: "+", description: "Ingest media and rebuild its manifest", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
   { name: "folder", slash: "/folder", icon: "▣", description: "Choose and attach a media folder", acceptsArgs: false, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined, !ctx.project ? ["/open", "/create"] : undefined) },

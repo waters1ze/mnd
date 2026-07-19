@@ -78,6 +78,39 @@ export async function promptInput(promptText: string, initialInput: string = "")
   });
 }
 
+async function refreshCommandContext(): Promise<void> {
+  const { resolveVaultPath, loadConfig } = await import("../core/config.js");
+  const { analyzeProjectFlags } = await import("../core/projectPaths.js");
+  const { getVerifiedAntigravity } = await import("../integrations/antigravityDiscovery.js");
+  const { listProjects } = await import("../core/vault.js");
+  const { updateCommandContext } = await import("./router.js");
+  const cfg = await loadConfig();
+  const vaultPath = resolveVaultPath(cfg);
+  let projectCtx: any = undefined;
+  if (session.currentProjectSlug) {
+    const pPath = (await import("node:path")).join(vaultPath, "Projects", session.currentProjectSlug);
+    try {
+      await (await import("../core/projectFile.js")).loadProjectFile(vaultPath, session.currentProjectSlug);
+      const flags = await analyzeProjectFlags(pPath);
+      projectCtx = { slug: session.currentProjectSlug, hasRawMedia: flags.hasRawMedia, pipelineStatus: "unknown", hasValidPlan: flags.hasValidPlan, hasValidExport: flags.hasValidExport };
+    } catch { /* project was removed outside MND */ }
+  }
+  const [projects, agStatus] = await Promise.all([
+    listProjects(vaultPath),
+    getVerifiedAntigravity().then((value) => value.status),
+  ]);
+  updateCommandContext({
+    project: projectCtx,
+    projects: projects.map((project) => ({ slug: project.slug, title: project.frontmatter.title ?? project.slug, status: project.frontmatter.status ?? "created" })),
+    services: {
+      groq: cfg.connections.groq_api_key_ref ? "ready" : "offline",
+      ollama: "unknown",
+      antigravity: (agStatus === "transport_ready" || agStatus === "operation_verified") ? "ready" : "missing",
+      obsidian: cfg.vault_path ? "ready" : "setup_required",
+    },
+  });
+}
+
 export async function startRepl(): Promise<void> {
   printBanner();
 
@@ -85,6 +118,7 @@ export async function startRepl(): Promise<void> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
+    await refreshCommandContext();
     const line = await promptInput(prompt(), insertOnStart);
     insertOnStart = ""; // reset for next iteration
 
@@ -108,45 +142,8 @@ export async function startRepl(): Promise<void> {
     }
 
     try {
-      // 1. Build and update context
-      const { resolveVaultPath, loadConfig } = await import("../core/config.js");
-      const { analyzeProjectFlags } = await import("../core/projectPaths.js");
-      const { getVerifiedAntigravity } = await import("../integrations/antigravityDiscovery.js");
-      const { updateCommandContext, COMMAND_REGISTRY, parseInput } = await import("./router.js");
-      
-      const cfg = await loadConfig();
-      const vaultPath = resolveVaultPath(cfg);
-
-      let projectCtx: any = undefined;
-      if (session.currentProjectSlug) {
-        const pPath = (await import("node:path")).join(vaultPath, "Projects", session.currentProjectSlug);
-        try {
-          // project.json is valid for modern projects even when project.md was
-          // imported or repaired later. Do not disable the palette on that case.
-          await (await import("../core/projectFile.js")).loadProjectFile(vaultPath, session.currentProjectSlug);
-          const flags = await analyzeProjectFlags(pPath);
-          projectCtx = {
-            slug: session.currentProjectSlug,
-            hasRawMedia: flags.hasRawMedia,
-            pipelineStatus: "unknown",
-            hasValidPlan: flags.hasValidPlan,
-            hasValidExport: flags.hasValidExport
-          };
-        } catch { /* keep project-only actions unavailable if the project was removed */ }
-      }
-
-      const agStatus = (await getVerifiedAntigravity()).status;
-      const agReady = (agStatus === "transport_ready" || agStatus === "operation_verified") ? "ready" : "missing";
-
-      updateCommandContext({
-        project: projectCtx,
-        services: {
-          groq: cfg.connections.groq_api_key_ref ? "ready" : "offline", // simplistic
-          ollama: "unknown", // could query /api/tags if fast enough
-          antigravity: agReady,
-          obsidian: cfg.vault_path ? "ready" : "setup_required"
-        }
-      });
+      const { COMMAND_REGISTRY, parseInput } = await import("./router.js");
+      await refreshCommandContext();
 
       // 2. Route
       await route(trimmed);

@@ -16,6 +16,7 @@ import { Updater } from "./core/updater.js";
 // ─── Import all command handlers ──────────────────────────────────────────────
 import { handleConfig } from "./commands/config.js";
 import { handleOpen } from "./commands/open.js";
+import { handleDelete } from "./commands/delete.js";
 import { handleCreate } from "./commands/create.js";
 import { handleSort } from "./commands/sort.js";
 import { handlePrompt } from "./commands/prompt.js";
@@ -92,7 +93,7 @@ async function main(): Promise<void> {
     console.log(chalk.gray([
       "Usage: mnd [command]",
       "",
-      "Commands: config, obsidian, open, create, folder, sort, analyze, prompt,",
+      "Commands: config, obsidian, open, create, delete, folder, sort, analyze, prompt,",
       "          approve, fix, show history, full new, full show, thumbnail,",
       "          refactor, rules review, skills, status, backup, restore, login, logout, account"
     ].join("\n")));
@@ -139,6 +140,7 @@ async function main(): Promise<void> {
     { name: "config", handler: handleConfig },
     { name: "obsidian", handler: handleObsidian },
     { name: "open", handler: handleOpen },
+    { name: "delete", handler: handleDelete },
     { name: "create", handler: handleCreate },
     { name: "project", handler: handleProject },
     { name: "add", handler: handleAdd },
@@ -172,7 +174,7 @@ async function main(): Promise<void> {
       name: "help",
       handler: async () => {
         console.log(chalk.gray([
-          "Commands: config, obsidian, open, create, folder, sort, analyze, prompt,",
+          "Commands: config, obsidian, open, create, delete, folder, sort, analyze, prompt,",
           "          approve, fix, show history, full new, full show, thumbnail,",
           "          refactor, rules review, skills, status, backup, restore, login, logout, account, graph",
         ].join("\n")));
