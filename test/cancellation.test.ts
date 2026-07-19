@@ -1,4 +1,4 @@
-import { resetCancellation, getAbortController, registerProcess, unregisterProcess } from "../src/core/cancellation.js";
+import { resetCancellation, getAbortController, registerProcess, unregisterProcess, requestForceCancellation } from "../src/core/cancellation.js";
 import { spawn } from "node:child_process";
 
 describe("cancellation", () => {
@@ -26,5 +26,13 @@ describe("cancellation", () => {
     getAbortController().abort();
     expect(cp.killed).toBe(false);
     cp.kill();
+  });
+
+  test("force cancellation stops work without terminating the MND process", async () => {
+    const exit = jest.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+    await requestForceCancellation();
+    expect(exit).not.toHaveBeenCalled();
+    expect(getAbortController().signal.aborted).toBe(true);
+    exit.mockRestore();
   });
 });

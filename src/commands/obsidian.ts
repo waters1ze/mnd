@@ -10,9 +10,42 @@ import { theme } from "../ui/theme.js";
 import type { CommandHandler } from "../repl/router.js";
 import { homedir } from "node:os";
 import { ensureVaultStructure as ensureCoreVaultStructure } from "../core/vault.js";
+import { createProject, listProjects } from "../core/vault.js";
+import { getProjectPaths } from "../core/projectPaths.js";
+import { session } from "../repl/loop.js";
 
 async function ensureVaultStructure(vaultPath: string): Promise<void> {
   await ensureCoreVaultStructure(vaultPath);
+}
+
+interface ObsidianProjectTarget {
+  slug: string;
+  notePath: string;
+  created: boolean;
+}
+
+export async function ensureObsidianProjectTarget(vaultPath: string): Promise<ObsidianProjectTarget> {
+  if (session.currentProjectSlug) {
+    const paths = getProjectPaths(vaultPath, session.currentProjectSlug);
+    if (existsSync(paths.projectMd)) {
+      return { slug: session.currentProjectSlug, notePath: `Projects/${session.currentProjectSlug}/project.md`, created: false };
+    }
+  }
+
+  const projects = await listProjects(vaultPath);
+  const selected = [...projects].sort((left, right) => {
+    const leftUpdated = Date.parse(left.frontmatter.updated || left.frontmatter.created || "") || 0;
+    const rightUpdated = Date.parse(right.frontmatter.updated || right.frontmatter.created || "") || 0;
+    return rightUpdated - leftUpdated || left.slug.localeCompare(right.slug);
+  })[0];
+  if (selected) {
+    session.currentProjectSlug = selected.slug;
+    return { slug: selected.slug, notePath: `Projects/${selected.slug}/project.md`, created: false };
+  }
+
+  const slug = await createProject(vaultPath, "Первый проект MND", "default");
+  session.currentProjectSlug = slug;
+  return { slug, notePath: `Projects/${slug}/project.md`, created: true };
 }
 
 async function performSetup(cfg: any) {
@@ -173,8 +206,12 @@ async function performSetup(cfg: any) {
   }
 
   await ensureVaultStructure(targetPath);
+  const projectTarget = await ensureObsidianProjectTarget(targetPath);
 
   console.log(chalk.green("✓ Vault initialized"));
+  console.log(projectTarget.created
+    ? chalk.green(`✓ Created project: ${projectTarget.slug}`)
+    : chalk.green(`✓ Project ready: ${projectTarget.slug}`));
 
   // Check Obsidian installation
   const regResult = await registerVaultSafely(targetPath);
@@ -186,21 +223,23 @@ async function performSetup(cfg: any) {
     // Update config
     await updateConfigField((c) => {
       c.vault_path = targetPath;
-      if (!c.obsidian) c.obsidian = { initialized: true, vault_id: regResult.vaultId, home_note: "Home.md", last_verified_at: null };
+      if (!c.obsidian) c.obsidian = { initialized: true, vault_id: regResult.vaultId, home_note: projectTarget.notePath, last_verified_at: null };
       c.obsidian.initialized = true;
       c.obsidian.vault_id = regResult.vaultId;
+      c.obsidian.home_note = projectTarget.notePath;
       c.obsidian.last_verified_at = new Date().toISOString();
     });
 
-    console.log(chalk.green("✓ Opening Home.md"));
-    await openRegisteredVault(regResult.vaultId);
+    console.log(chalk.green(`✓ Opening ${projectTarget.notePath}`));
+    await openRegisteredVault(regResult.vaultId, projectTarget.notePath);
   } else {
     // Save path anyway
     await updateConfigField((c) => {
       c.vault_path = targetPath;
-      if (!c.obsidian) c.obsidian = { initialized: true, vault_id: null, home_note: "Home.md", last_verified_at: null };
+      if (!c.obsidian) c.obsidian = { initialized: true, vault_id: null, home_note: projectTarget.notePath, last_verified_at: null };
       c.obsidian.initialized = true;
       c.obsidian.vault_id = null;
+      c.obsidian.home_note = projectTarget.notePath;
     });
 
     console.log(chalk.yellow("! One-time Obsidian registration required\n"));
@@ -265,6 +304,9 @@ export const handleObsidian: CommandHandler = async (args, rawInput) => {
   }
 
   const vaultPath = resolveVaultPath(cfg);
+  await ensureVaultStructure(vaultPath);
+  const projectTarget = await ensureObsidianProjectTarget(vaultPath);
+  if (projectTarget.created) console.log(chalk.hex(theme.accent)(`✓ Created project: ${projectTarget.slug}`));
   
   // Standard run (either /obsidian or /obidian)
   let vaultId = cfg.obsidian?.vault_id;
@@ -286,8 +328,9 @@ export const handleObsidian: CommandHandler = async (args, rawInput) => {
 
   if (vaultId) {
     try {
-      await openRegisteredVault(vaultId, cfg.obsidian?.home_note || "Home");
-      console.log(chalk.hex(theme.accent)(`✓ Opened Obsidian vault`));
+      await openRegisteredVault(vaultId, projectTarget.notePath);
+      await updateConfigField(c => { if(c.obsidian) c.obsidian.home_note = projectTarget.notePath; });
+      console.log(chalk.hex(theme.accent)(`✓ Opened ${projectTarget.notePath} in Obsidian`));
     } catch (err) {
       console.log(chalk.red("✗ Failed to open vault. Try /obsidian repair"));
     }
@@ -296,8 +339,9 @@ export const handleObsidian: CommandHandler = async (args, rawInput) => {
     const reg = await registerVaultSafely(vaultPath);
     if (reg.success && reg.vaultId) {
       await updateConfigField(c => { if(c.obsidian) c.obsidian.vault_id = reg.vaultId; });
-      await openRegisteredVault(reg.vaultId, cfg.obsidian?.home_note || "Home");
-      console.log(chalk.hex(theme.accent)(`✓ Opened Obsidian vault`));
+      await openRegisteredVault(reg.vaultId, projectTarget.notePath);
+      await updateConfigField(c => { if(c.obsidian) c.obsidian.home_note = projectTarget.notePath; });
+      console.log(chalk.hex(theme.accent)(`✓ Opened ${projectTarget.notePath} in Obsidian`));
     } else {
       console.log(chalk.yellow(`Vault not registered with Obsidian.`));
       console.log(chalk.gray(`Run /obsidian setup or repair.`));

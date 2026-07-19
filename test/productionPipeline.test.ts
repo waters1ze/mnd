@@ -3,20 +3,24 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { XMLValidator } from "fast-xml-parser";
 import { buildAutomaticEditPlan } from "../src/pipeline/automaticEditor.js";
+import { preservePromptedImageOverlays } from "../src/pipeline/aiEditPlan.js";
 import { validateEditPlan } from "../src/pipeline/editPlanValidator.js";
 import { compileTimeline } from "../src/pipeline/timelineCompiler.js";
 import { generateFcpxml, generateSrt } from "../src/export/fcpxmlExporter.js";
-import type { SourceAnalysis, SourceManifest, SourceRecord } from "../src/types/production.js";
+import type { SourceAnalysis, SourceManifest, SourceRecord, TranscriptV1 } from "../src/types/production.js";
 
 describe("production editing pipeline", () => {
   let projectRoot: string;
   let source: SourceRecord;
+  let imageSource: SourceRecord;
   let manifest: SourceManifest;
 
   beforeAll(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), "mnd-production-"));
     const sourcePath = join(projectRoot, "source.mp4");
+    const imagePath = join(projectRoot, "logo.png");
     await writeFile(sourcePath, "fixture");
+    await writeFile(imagePath, "image fixture");
     source = {
       id: "source_primary",
       relativePath: "source.mp4",
@@ -35,6 +39,25 @@ describe("production editing pipeline", () => {
       timeBase: "1/25",
       sampleRate: 48000,
       channels: 2,
+    };
+    imageSource = {
+      id: "source_logo",
+      relativePath: "logo.png",
+      canonicalPath: imagePath,
+      sha256: "b".repeat(64),
+      size: 13,
+      mtime: "2026-01-01T00:00:00.000Z",
+      durationSeconds: 0,
+      format: "png",
+      kind: "image",
+      videoStreams: [],
+      audioStreams: [],
+      width: 1200,
+      height: 800,
+      fps: { numerator: 25, denominator: 1 },
+      timeBase: "1/25",
+      sampleRate: 0,
+      channels: 0,
     };
     manifest = {
       schemaVersion: 1,
@@ -118,5 +141,91 @@ describe("production editing pipeline", () => {
       { id: "later", start: 2, end: 3.25, text: "Second" },
       { id: "first", start: 0.1, end: 1.2, text: "First" },
     ])).toBe("1\n00:00:00,100 --> 00:00:01,200\nFirst\n\n2\n00:00:02,000 --> 00:00:03,250\nSecond\n\n");
+  });
+
+  test("places a named source image at the matching spoken cue", () => {
+    const imageManifest: SourceManifest = { ...manifest, entries: [source, imageSource] };
+    const analysis: SourceAnalysis = {
+      schemaVersion: 1,
+      sourceId: source.id,
+      sourceHash: source.sha256,
+      parametersHash: "parameters",
+      scenes: [{
+        id: "scene_1",
+        sourceId: source.id,
+        sourceStart: 0,
+        sourceEnd: 20,
+        description: "Talking head",
+        transcriptReferences: [],
+        visualQuality: 1,
+        audioQuality: 1,
+        tags: [],
+        people: [],
+        objects: [],
+        suggestedRole: "primary",
+        keepScore: 1,
+        rejectScore: 0,
+        diagnostics: [],
+      }],
+      diagnostics: [],
+      highlights: [],
+      brollOpportunities: [],
+      generatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const transcript: TranscriptV1 = {
+      schemaVersion: 1,
+      sourceId: source.id,
+      sourceHash: source.sha256,
+      language: "ru",
+      provider: "fixture",
+      model: "fixture",
+      segments: [
+        { id: "intro", start: 0, end: 2, text: "Начинаем рассказ", words: [] },
+        { id: "spoken-link", start: 8, end: 9.5, text: "Ссылка находится в описании", words: [] },
+      ],
+      generatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    const plan = buildAutomaticEditPlan(imageManifest.projectId, imageManifest, [analysis], [transcript], {
+      profile: "talking_head",
+      timelineName: "Prompt image placement",
+      fps: { numerator: 25, denominator: 1 },
+      keepInstructions: ["Когда говорю «ссылка в описании» и показываю вниз, вставь logo.png между моих рук"],
+    });
+
+    const imageTrack = plan.tracks.find((track) => track.kind === "images");
+    expect(imageTrack?.clips).toHaveLength(1);
+    expect(imageTrack?.clips[0]).toMatchObject({
+      sourceId: imageSource.id,
+      timelineStart: 8,
+      transform: { scale: 0.34, positionX: 0, positionY: -140 },
+    });
+    expect(validateEditPlan(plan, imageManifest, projectRoot).valid).toBe(true);
+
+    const timeline = compileTimeline(plan, imageManifest, projectRoot);
+    const xml = generateFcpxml(timeline, imageManifest);
+    expect(XMLValidator.validate(xml)).toBe(true);
+    expect(xml).toContain('name="logo.png"');
+    expect(xml).toContain('<adjust-transform position="0 -140" scale="0.34 0.34"');
+
+    const primaryTrack = plan.tracks.find((track) => track.kind === "primary_video")!;
+    const shiftedCandidate = {
+      ...plan,
+      tracks: plan.tracks
+        .filter((track) => track.kind !== "images")
+        .map((track) => track.kind !== "primary_video" ? track : {
+          ...track,
+          clips: track.clips.map((clip) => ({
+            ...clip,
+            timelineStart: clip.timelineStart + 4,
+            timelineEnd: clip.timelineEnd + 4,
+          })),
+        }),
+    };
+    expect(primaryTrack.clips[0]!.sourceStart).toBe(0);
+    const preserved = preservePromptedImageOverlays(shiftedCandidate, plan);
+    const movedOverlay = preserved.tracks.find((track) => track.kind === "images")!.clips[0]!;
+    expect(movedOverlay.timelineStart).toBe(12);
+    expect(movedOverlay.transform).toEqual(imageTrack!.clips[0]!.transform);
   });
 });

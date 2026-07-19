@@ -71,14 +71,14 @@ interface ReplInputProps {
   promptText: string;
   initialInput?: string;
   onSubmit: (text: string) => void;
-  onExit: () => void;
 }
 
-export function ReplInput({ promptText, initialInput = "", onSubmit, onExit }: ReplInputProps): React.ReactElement {
+export function ReplInput({ promptText, initialInput = "", onSubmit }: ReplInputProps): React.ReactElement {
   const [input, setInput] = useState(initialInput);
   const [cursorIdx, setCursorIdx] = useState(initialInput.length);
   const [showPalette, setShowPalette] = useState(initialInput.startsWith("/"));
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [notice, setNotice] = useState("");
   const { exit } = useApp();
 
   const filtered = showPalette ? filterCommands(input, COMMAND_REGISTRY) : [];
@@ -89,17 +89,21 @@ export function ReplInput({ promptText, initialInput = "", onSubmit, onExit }: R
   const availability = selectedCmd?.availability ? selectedCmd.availability(CURRENT_CONTEXT) : { enabled: true };
 
   useInput(async (char, key) => {
+    if (key.ctrl && (char.toLowerCase() === "c" || char.toLowerCase() === "d")) {
+      setInput("");
+      setCursorIdx(0);
+      setShowPalette(false);
+      setNotice("MND остаётся запущенным · для выхода введите exit");
+      return;
+    }
+
     if (key.escape) {
       if (showPalette) {
         setShowPalette(false);
       } else {
-        if (input.trim() === "") {
-          onExit();
-          exit();
-        } else {
-          setInput("");
-          setCursorIdx(0);
-        }
+        setInput("");
+        setCursorIdx(0);
+        setNotice("Ввод очищен · MND продолжает работать");
       }
       return;
     }
@@ -189,6 +193,7 @@ export function ReplInput({ promptText, initialInput = "", onSubmit, onExit }: R
 
     // printable chars
     if (char && !key.meta && !key.ctrl) {
+      setNotice("");
       const nextInput = input.slice(0, cursorIdx) + char + input.slice(cursorIdx);
       setInput(nextInput);
       setCursorIdx((i) => i + char.length);
@@ -297,6 +302,7 @@ export function ReplInput({ promptText, initialInput = "", onSubmit, onExit }: R
         <Text>{afterCursor}</Text>
       </Box>
       {paletteBox}
+      {notice ? <Text color="gray">  {notice}</Text> : null}
     </Box>
   );
 }

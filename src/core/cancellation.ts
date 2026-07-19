@@ -146,12 +146,11 @@ export async function requestGracefulCancellation(): Promise<void> {
  */
 export async function requestForceCancellation(): Promise<void> {
   if (cancellationLevel === "force") return;
-  console.log("\n\n[!] Force cancellation requested. Terminating immediately...");
+  console.log("\n\n[!] Force cancellation requested. Stopping owned tasks and returning to MND...");
   cancellationLevel = "force";
   isCancelling = true;
   globalAbortController.abort();
   await terminateAllOwnedProcesses();
-  process.exit(1);
 }
 
 export function setupSignalHandlers(): void {

@@ -19,7 +19,12 @@ jest.mock("../src/core/config.js", () => ({
   updateConfigField: jest.fn()
 }));
 jest.mock("../src/core/vault.js", () => ({
-  ensureVaultStructure: jest.fn().mockResolvedValue(undefined)
+  ensureVaultStructure: jest.fn().mockResolvedValue(undefined),
+  listProjects: jest.fn().mockResolvedValue([]),
+  createProject: jest.fn().mockResolvedValue("first-mnd-project")
+}));
+jest.mock("../src/core/projectPaths.js", () => ({
+  getProjectPaths: jest.fn().mockReturnValue({ projectMd: "C:\\Fake\\Vault\\Projects\\first-mnd-project\\project.md" })
 }));
 jest.mock("node:child_process", () => ({
   exec: jest.fn((cmd, cb) => cb(null, ""))

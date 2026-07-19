@@ -16,6 +16,11 @@ export const processTtyAdapter: TtyAdapter = {
   pause() { process.stdin.pause(); }
 };
 
+export function restoreInteractiveStdin(adapter: TtyAdapter = processTtyAdapter): void {
+  if (adapter.isTTY) adapter.setRawMode(false);
+  adapter.resume();
+}
+
 export async function releaseInkStdin(
   waitUntilExitPromise: Promise<void>,
   adapter: TtyAdapter = processTtyAdapter
@@ -25,10 +30,6 @@ export async function releaseInkStdin(
     // Yield to allow Ink's internal unmount to fully flush and release stdin
     await new Promise<void>(resolve => setImmediate(resolve));
   } finally {
-    if (adapter.isTTY) {
-      adapter.setRawMode(false);
-    }
-    adapter.resume();
+    restoreInteractiveStdin(adapter);
   }
 }
-

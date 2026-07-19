@@ -1,11 +1,12 @@
 // src/repl/loop.ts
-import { stdin as input, stdout as output, exit } from "node:process";
+import { stdin as input } from "node:process";
 import chalk from "chalk";
 import gradient from "gradient-string";
 import React from "react";
 import { render } from "ink";
 import { route } from "./router.js";
 import { theme } from "../ui/theme.js";
+import { box, LIGHT } from "../ui/box.js";
 
 // The REPL keeps a single piece of mutable session state:
 // the "current project" slug, set by `open`/`create`
@@ -13,29 +14,41 @@ export const session = {
   currentProjectSlug: null as string | null,
 };
 
-const BANNER = `
-  ███╗   ███╗███╗   ██╗██████╗
-  ████╗ ████║████╗  ██║██╔══██╗
-  ██╔████╔██║██╔██╗ ██║██║  ██║
-  ██║╚██╔╝██║██║╚██╗██║██║  ██║
-  ██║ ╚═╝ ██║██║ ╚████║██████╔╝
-  ╚═╝     ╚═╝╚═╝  ╚═══╝╚═════╝
-`;
+export function shouldExitRepl(line: string | null): boolean {
+  if (line === null) return false;
+  const command = line.trim().toLocaleLowerCase("en-US");
+  return command === "exit" || command === "quit";
+}
+
+const BANNER = `  ███╗   ███╗ ███╗   ██╗ ██████╗
+  ████╗ ████║ ████╗  ██║ ██╔══██╗
+  ██╔████╔██║ ██╔██╗ ██║ ██║  ██║
+  ██║╚██╔╝██║ ██║╚██╗██║ ██████╔╝
+  ╚═╝     ╚═╝ ╚═╝ ╚═══╝ ╚═════╝`;
 
 function printBanner(): void {
   // gradient-string is only used here, nowhere else
-  console.log(gradient(["#7C5CFF", "#A78BFA"])(BANNER));
-  console.log(
-    chalk.hex(theme.accent)("  AI-assisted vlog editor") +
-    chalk.gray("  →  DaVinci Resolve\n")
-  );
+  console.log(gradient(["#22D3EE", "#7C5CFF", "#C084FC"])(BANNER));
+  const chrome = box(" MND STUDIO · 0.1 ", [
+    `  ${chalk.hex("#A78BFA")("Antigravity")} orchestration  ${chalk.gray("•")}  ${chalk.white("DaVinci")} timelines`,
+    `  ${chalk.hex("#22D3EE")("Obsidian")} workspace      ${chalk.gray("•")}  verified media pipeline`,
+    `  ${chalk.gray("/")} commands   ${chalk.gray("↑↓")} history   ${chalk.gray("Esc")} clear   ${chalk.gray("exit")} close`,
+  ], {
+    width: 62,
+    charset: LIGHT,
+    color: (value) => chalk.hex("#343A52")(value),
+    titleColor: (value) => chalk.hex(theme.accent).bold(value),
+  });
+  console.log(chrome.join("\n"));
+  console.log();
 }
 
 function prompt(): string {
-  const slug = session.currentProjectSlug
-    ? chalk.hex(theme.accent)(`[${session.currentProjectSlug}]`) + " "
-    : "";
-  return `${slug}${chalk.hex(theme.accent)("mnd")} ${chalk.gray("›")} `;
+  const brand = chalk.bgHex(theme.accent).black.bold(" MND ");
+  const project = session.currentProjectSlug
+    ? ` ${chalk.hex("#C4B5FD")(`◈ ${session.currentProjectSlug}`)}`
+    : ` ${chalk.gray("◇ no project")}`;
+  return `${brand}${project} ${chalk.hex("#22D3EE")("❯")} `;
 }
 
 export async function promptInput(promptText: string, initialInput: string = ""): Promise<string | null> {
@@ -48,9 +61,6 @@ export async function promptInput(promptText: string, initialInput: string = "")
         initialInput,
         onSubmit: (text: string) => {
           result = text;
-        },
-        onExit: () => {
-          result = null;
         },
       })
     );
@@ -79,17 +89,21 @@ export async function startRepl(): Promise<void> {
     insertOnStart = ""; // reset for next iteration
 
     if (line === null) {
-      // Exit condition
-      console.log(chalk.gray("\nGoodbye."));
-      exit(0);
-      break;
+      if (!input.isTTY) return;
+      const { restoreInteractiveStdin } = await import("../ui/tty.js");
+      restoreInteractiveStdin();
+      const terminalEnded = input.readableEnded;
+      console.log(chalk.gray(terminalEnded
+        ? "MND ожидает восстановления терминала · для выхода используйте exit"
+        : "MND восстановил интерактивный prompt · для выхода введите exit"));
+      await new Promise<void>((resolve) => setTimeout(resolve, terminalEnded ? 500 : 25));
+      continue;
     }
 
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (trimmed === "exit" || trimmed === "quit") {
+    if (shouldExitRepl(trimmed)) {
       console.log(chalk.gray("\nGoodbye."));
-      exit(0);
       break;
     }
 
@@ -144,6 +158,9 @@ export async function startRepl(): Promise<void> {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(chalk.red(`Error: ${msg}`));
+    } finally {
+      const { restoreInteractiveStdin } = await import("../ui/tty.js");
+      restoreInteractiveStdin();
     }
   }
 }

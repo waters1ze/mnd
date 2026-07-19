@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { basename, parse } from "node:path";
 import type {
   EditClipV1,
   EditPlanV1,
@@ -37,6 +38,71 @@ interface Candidate extends TimeRange {
   source: SourceRecord;
   score: number;
   protected: boolean;
+}
+
+interface TranscriptAnchor extends TimeRange {
+  sourceId: string;
+  text: string;
+  score: number;
+}
+
+const IMAGE_REQUEST = /\b(image|picture|photo|screenshot|logo|overlay)\b|\.(?:png|jpe?g|webp|gif|bmp|tiff?|heic)\b|картин|изображ|фото|скрин|логотип|оверле/i;
+const HAND_PLACEMENT = /between\s+(?:my\s+)?hands|между\s+(?:моих\s+)?рук|между\s+ладон/i;
+const DOWN_PLACEMENT = /point(?:ed|ing)?\s+down|show(?:ed|ing)?\s+down|показал\w*\s+вниз|указал\w*\s+вниз|снизу|ниже/i;
+const FULLSCREEN_PLACEMENT = /full[ -]?screen|на\s+весь\s+экран|полноэкран/i;
+const STOP_WORDS = new Set(["this", "that", "with", "when", "then", "into", "from", "have", "will", "чтобы", "когда", "потом", "между", "моих", "этот", "эту", "картинку", "изображение", "вставь", "поставь", "добавь"]);
+
+function normalizedWords(value: string): string[] {
+  return value
+    .toLocaleLowerCase("ru-RU")
+    .replace(/[^a-zа-яё0-9]+/giu, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+}
+
+function imageInstruction(options: AutomaticEditOptions): string {
+  return [...(options.keepInstructions ?? []), ...(options.removeInstructions ?? [])].join(" ").trim();
+}
+
+function findTranscriptAnchor(instruction: string, transcripts: TranscriptV1[]): TranscriptAnchor | undefined {
+  const instructionWords = new Set(normalizedWords(instruction));
+  if (instructionWords.size === 0) return undefined;
+  const anchors = transcripts.flatMap((transcript) => transcript.segments.map((segment) => {
+    const segmentWords = normalizedWords(segment.text);
+    const overlapScore = segmentWords.reduce((score, word) => score + (instructionWords.has(word) ? 1 : 0), 0);
+    const semanticBoost = /link|description|below|ссылк|описан|вниз|ниже/i.test(segment.text) ? 2 : 0;
+    return {
+      sourceId: transcript.sourceId,
+      start: segment.start,
+      end: segment.end,
+      text: segment.text,
+      score: overlapScore + semanticBoost,
+    };
+  }));
+  const best = anchors.sort((left, right) => right.score - left.score || left.start - right.start)[0];
+  return best && best.score > 0 ? best : undefined;
+}
+
+function selectInstructionImages(images: SourceRecord[], instruction: string): SourceRecord[] {
+  if (images.length <= 1) return images;
+  const normalizedInstruction = instruction.toLocaleLowerCase("ru-RU");
+  const mentioned = images.filter((source) => {
+    const stem = parse(basename(source.relativePath)).name.toLocaleLowerCase("ru-RU");
+    const meaningful = normalizedWords(stem);
+    return normalizedInstruction.includes(stem) || meaningful.some((word) => normalizedInstruction.includes(word));
+  });
+  return (mentioned.length > 0 ? mentioned : [...images].sort((left, right) => left.relativePath.localeCompare(right.relativePath, "ru"))).slice(0, 1);
+}
+
+function imageTransformForInstruction(instruction: string): EditClipV1["transform"] {
+  if (FULLSCREEN_PLACEMENT.test(instruction)) return defaultTransform();
+  if (HAND_PLACEMENT.test(instruction) || DOWN_PLACEMENT.test(instruction)) {
+    return { scale: 0.34, positionX: 0, positionY: -140, rotation: 0, opacity: 1 };
+  }
+  if (/left|слева/i.test(instruction)) return { scale: 0.38, positionX: -420, positionY: 0, rotation: 0, opacity: 1 };
+  if (/right|справа/i.test(instruction)) return { scale: 0.38, positionX: 420, positionY: 0, rotation: 0, opacity: 1 };
+  return { scale: 0.42, positionX: 0, positionY: 0, rotation: 0, opacity: 1 };
 }
 
 function id(prefix: string, ...parts: Array<string | number>): string {
@@ -197,6 +263,25 @@ function makeClip(
   };
 }
 
+function imageTimelineWindow(anchor: TranscriptAnchor | undefined, primaryClips: EditClipV1[], timelineDuration: number): TimeRange {
+  if (anchor) {
+    const primary = primaryClips.find((clip) =>
+      clip.sourceId === anchor.sourceId
+      && anchor.start < clip.sourceEnd
+      && anchor.end > clip.sourceStart,
+    );
+    if (primary) {
+      const sourceStart = Math.max(primary.sourceStart, anchor.start);
+      const timelineStart = primary.timelineStart + (sourceStart - primary.sourceStart) / primary.speed;
+      const available = Math.max(0, primary.timelineEnd - timelineStart);
+      const duration = Math.min(3, Math.max(0.75, anchor.end - anchor.start + 0.8), available);
+      if (duration >= 0.5) return { start: timelineStart, end: timelineStart + duration };
+    }
+  }
+  const start = Math.max(0, Math.min(5, timelineDuration - 0.75));
+  return { start, end: Math.min(timelineDuration, start + 3) };
+}
+
 export function buildAutomaticEditPlan(
   projectId: string,
   manifest: SourceManifest,
@@ -205,12 +290,25 @@ export function buildAutomaticEditPlan(
   options: AutomaticEditOptions,
 ): EditPlanV1 {
   const sourceAnalyses = new Map(analyses.map((analysis) => [analysis.sourceId, analysis]));
+  const instruction = imageInstruction(options);
+  const images = manifest.entries.filter((source) => source.kind === "image");
+  const requestedImages = IMAGE_REQUEST.test(instruction) ? selectInstructionImages(images, instruction) : [];
+  const transcriptAnchor = requestedImages.length > 0 ? findTranscriptAnchor(instruction, transcripts) : undefined;
+  const effectiveOptions: AutomaticEditOptions = transcriptAnchor
+    ? {
+        ...options,
+        protectedSegments: [
+          ...(options.protectedSegments ?? []),
+          { sourceId: transcriptAnchor.sourceId, start: transcriptAnchor.start, end: transcriptAnchor.end },
+        ],
+      }
+    : options;
   const spoken = manifest.entries.filter((source) => source.kind === "video" && source.audioStreams.length > 0 && source.durationSeconds > 0);
   const primarySources = spoken.length > 0 ? spoken : manifest.entries.filter((source) => source.kind === "video" && source.durationSeconds > 0).slice(0, 1);
   if (primarySources.length === 0) throw new Error("No video source is available for the primary timeline");
 
-  const allCandidates = primarySources.flatMap((source) => buildCandidates(source, sourceAnalyses.get(source.id), transcriptFor(source.id, transcripts), options));
-  const candidates = selectForTarget(allCandidates, options.targetDurationSeconds);
+  const allCandidates = primarySources.flatMap((source) => buildCandidates(source, sourceAnalyses.get(source.id), transcriptFor(source.id, transcripts), effectiveOptions));
+  const candidates = selectForTarget(allCandidates, effectiveOptions.targetDurationSeconds);
   if (candidates.length === 0) throw new Error("Automatic editing rejected every source range; adjust banned/protected segments or aggressiveness");
 
   const primaryTrackId = "track_primary_video";
@@ -237,16 +335,19 @@ export function buildAutomaticEditPlan(
     if (clips.length > 0) tracks.push({ id: trackId, kind: "broll", name: "B-roll", exclusive: true, clips });
   }
 
-  const images = manifest.entries.filter((source) => source.kind === "image");
-  if (images.length > 0) {
+  if (requestedImages.length > 0) {
     const trackId = "track_images";
     const clips: EditClipV1[] = [];
-    for (const [index, source] of images.entries()) {
-      const start = Math.min(timelineCursor - 0.5, 5 + index * 12);
-      if (start < 0) continue;
-      const duration = Math.min(3, timelineCursor - start);
+    for (const source of requestedImages) {
+      const window = imageTimelineWindow(transcriptAnchor, primaryClips, timelineCursor);
+      const duration = window.end - window.start;
+      if (duration < 0.5) continue;
       const imageSource = { ...source, durationSeconds: Math.max(source.durationSeconds, duration) };
-      clips.push(makeClip(imageSource, 0, duration, start, trackId, false));
+      const clip = makeClip(imageSource, 0, duration, window.start, trackId, false);
+      clip.transform = imageTransformForInstruction(instruction);
+      clip.transitionIn = null;
+      clip.transitionOut = null;
+      clips.push(clip);
     }
     if (clips.length > 0) tracks.push({ id: trackId, kind: "images", name: "Images", exclusive: true, clips });
   }
@@ -293,6 +394,9 @@ export function buildAutomaticEditPlan(
     options.targetDurationSeconds ? `Optimized selections toward the requested ${options.targetDurationSeconds.toFixed(2)} second duration` : "Preserved all source ranges that passed quality checks",
     tracks.some((track) => track.kind === "broll") ? "Placed B-roll on a connected video lane at profile-controlled intervals" : "No eligible B-roll placement was produced",
     tracks.some((track) => track.kind === "music") ? "Placed music on a separate lane with speech ducking metadata and fades" : "No music source was available",
+    tracks.some((track) => track.kind === "images")
+      ? `Placed the requested image near transcript cue "${transcriptAnchor?.text ?? "fallback timeline position"}" with prompt-directed transform`
+      : "No prompt-directed image overlay was requested",
   ];
 
   return {
