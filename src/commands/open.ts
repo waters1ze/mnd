@@ -1,6 +1,8 @@
 // src/commands/open.ts
 import { confirm } from "@clack/prompts";
 import chalk from "chalk";
+import { render } from "ink";
+import React from "react";
 import { loadConfig, resolveVaultPath } from "../core/config.js";
 import { listProjects } from "../core/vault.js";
 import { session } from "../repl/loop.js";
@@ -10,14 +12,45 @@ import type { CommandHandler } from "../repl/router.js";
 
 export const handleOpen: CommandHandler = async (args) => {
   const name = args[0];
-  if (!name) {
-    console.log(chalk.yellow("Usage: open \"Project Name\""));
-    return;
-  }
-
   const cfg = await loadConfig();
   const vaultPath = resolveVaultPath(cfg);
   const projects = await listProjects(vaultPath);
+
+  if (!name) {
+    if (projects.length === 0) {
+      console.log(chalk.yellow("No projects yet. Use /create \"Project Name\" first."));
+      return;
+    }
+    const { SelectorWithPreview } = await import("../ui/selectorWithPreview.js");
+    let selectedSlug: string | null = null;
+    let done = false;
+    const { unmount } = render(
+      React.createElement(SelectorWithPreview, {
+        title: "Open project",
+        items: projects.map((project) => ({
+          label: project.slug,
+          preview: [
+            `Name: ${project.frontmatter.title ?? project.slug}`,
+            `Status: ${project.frontmatter.status ?? "created"}`,
+            `Style: ${project.frontmatter.style ?? "default"}`,
+            `Path: ${project.filePath}`,
+          ].join("\n"),
+        })),
+        onSelect: (slug: string) => { selectedSlug = slug; done = true; unmount(); },
+        onCancel: () => { done = true; unmount(); },
+      }),
+    );
+    await new Promise<void>((resolve) => {
+      const timer = setInterval(() => {
+        if (done) { clearInterval(timer); resolve(); }
+      }, 50);
+    });
+    if (!selectedSlug) return;
+    session.currentProjectSlug = selectedSlug;
+    const selected = projects.find((project) => project.slug === selectedSlug)!;
+    console.log(chalk.hex(theme.accent)(`Opened project: ${selected.frontmatter.title ?? selected.slug}`) + chalk.gray(` [${selected.slug}]`));
+    return;
+  }
 
   const targetSlug = slugify(name);
 

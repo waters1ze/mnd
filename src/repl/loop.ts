@@ -110,7 +110,7 @@ export async function startRepl(): Promise<void> {
     try {
       // 1. Build and update context
       const { resolveVaultPath, loadConfig } = await import("../core/config.js");
-      const { isProjectFolder, analyzeProjectFlags } = await import("../core/projectPaths.js");
+      const { analyzeProjectFlags } = await import("../core/projectPaths.js");
       const { getVerifiedAntigravity } = await import("../integrations/antigravityDiscovery.js");
       const { updateCommandContext, COMMAND_REGISTRY, parseInput } = await import("./router.js");
       
@@ -120,8 +120,10 @@ export async function startRepl(): Promise<void> {
       let projectCtx: any = undefined;
       if (session.currentProjectSlug) {
         const pPath = (await import("node:path")).join(vaultPath, "Projects", session.currentProjectSlug);
-        const isProj = await isProjectFolder(pPath);
-        if (isProj) {
+        try {
+          // project.json is valid for modern projects even when project.md was
+          // imported or repaired later. Do not disable the palette on that case.
+          await (await import("../core/projectFile.js")).loadProjectFile(vaultPath, session.currentProjectSlug);
           const flags = await analyzeProjectFlags(pPath);
           projectCtx = {
             slug: session.currentProjectSlug,
@@ -130,7 +132,7 @@ export async function startRepl(): Promise<void> {
             hasValidPlan: flags.hasValidPlan,
             hasValidExport: flags.hasValidExport
           };
-        }
+        } catch { /* keep project-only actions unavailable if the project was removed */ }
       }
 
       const agStatus = (await getVerifiedAntigravity()).status;
