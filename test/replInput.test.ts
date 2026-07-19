@@ -1,5 +1,5 @@
 // test/replInput.test.ts
-import { filterCommands, handleSelection } from "../src/ui/replInput.js";
+import { filterCommands, handleSelection, hasCommandArguments } from "../src/ui/replInput.js";
 import type { CommandDefinition } from "../src/repl/router.js";
 
 const TEST_REGISTRY: CommandDefinition[] = [
@@ -9,6 +9,11 @@ const TEST_REGISTRY: CommandDefinition[] = [
 ];
 
 describe("replInput filters", () => {
+  test("recognizes a command followed by free-text arguments", () => {
+    expect(hasCommandArguments("/auto ")).toBe(true);
+    expect(hasCommandArguments('/auto "make a video"')).toBe(true);
+    expect(hasCommandArguments("/aut")).toBe(false);
+  });
   test("filterCommands matches prefix without slash", () => {
     const res = filterCommands("an", TEST_REGISTRY);
     expect(res).toHaveLength(1);

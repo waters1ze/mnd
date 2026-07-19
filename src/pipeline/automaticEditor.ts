@@ -258,11 +258,17 @@ function buildCandidates(
   const protectedRanges = (options.protectedSegments ?? []).filter((item) => item.sourceId === source.id);
   const banned = (options.bannedSegments ?? []).filter((item) => item.sourceId === source.id);
   const diagnostics = analysis?.diagnostics ?? [];
+  const silenceRanges = diagnostics
+    .filter((item) => item.type === "silence" && item.end - item.start >= 0.75)
+    // A source that is almost entirely silent can be intentional B-roll.
+    // Keeping it is safer than producing an empty edit plan.
+    .filter((item) => item.end - item.start < source.durationSeconds * 0.8)
+    .map((item) => ({ start: item.start + 0.12, end: item.end - 0.12 }));
   const removals: TimeRange[] = [
     ...banned,
     ...diagnostics.filter((item) => item.type === "black" && item.end - item.start >= 0.15),
     ...diagnostics.filter((item) => item.type === "duplicate"),
-    ...diagnostics.filter((item) => item.type === "silence" && item.end - item.start >= 0.75).map((item) => ({ start: item.start + 0.12, end: item.end - 0.12 })),
+    ...silenceRanges,
   ];
   const sceneRanges = analysis?.scenes.length
     ? analysis.scenes.filter((scene) => scene.suggestedRole !== "reject").map((scene) => ({ start: scene.sourceStart, end: scene.sourceEnd, score: scene.keepScore }))
@@ -391,8 +397,9 @@ export function buildAutomaticEditPlan(
         ],
       }
     : options;
-  const spoken = manifest.entries.filter((source) => source.kind === "video" && source.audioStreams.length > 0 && source.durationSeconds > 0);
-  const primarySources = spoken.length > 0 ? spoken : manifest.entries.filter((source) => source.kind === "video" && source.durationSeconds > 0).slice(0, 1);
+  // Include all supplied footage in sequence. Clips without audio remain
+  // usable as picture; their audio track is simply disabled.
+  const primarySources = manifest.entries.filter((source) => source.kind === "video" && source.durationSeconds > 0);
   if (primarySources.length === 0) throw new Error("No video source is available for the primary timeline");
 
   const allCandidates = primarySources.flatMap((source) => buildCandidates(source, sourceAnalyses.get(source.id), transcriptFor(source.id, transcripts), effectiveOptions));

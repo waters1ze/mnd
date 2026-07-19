@@ -67,6 +67,10 @@ export function handleSelection(cmd: CommandDefinition): SelectionResult {
   }
 }
 
+export function hasCommandArguments(input: string): boolean {
+  return /^\/\S+\s/.test(input);
+}
+
 interface ReplInputProps {
   promptText: string;
   initialInput?: string;
@@ -200,6 +204,10 @@ export function ReplInput({ promptText, initialInput = "", onSubmit }: ReplInput
       
       if (char === "/" && nextInput === "/") {
         setShowPalette(true);
+      } else if (showPalette && hasCommandArguments(nextInput)) {
+        // The user is now typing a free-text argument, not looking for a
+        // second command. Keep the prompt clear and usable.
+        setShowPalette(false);
       }
       setSelectedIdx(0);
     }

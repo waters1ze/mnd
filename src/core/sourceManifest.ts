@@ -74,7 +74,7 @@ export async function buildSourceRecord(projectRoot: string, filePath: string): 
     mtime: fileStat.mtime.toISOString(),
     durationSeconds: media.durationSeconds,
     format: media.format,
-    kind: media.kind,
+    kind: mediaKindForPath(canonicalPath, media.kind),
     videoStreams: media.videoStreams,
     audioStreams: media.audioStreams,
     width: media.width,
@@ -92,9 +92,19 @@ const MEDIA_EXTENSIONS = new Set([
   ".ogg", ".opus", ".png", ".tif", ".tiff", ".wav", ".webm", ".webp",
 ]);
 
+// ffprobe exposes still images as one-frame video streams. For editing they
+// must remain images so overlays get a real, user-controlled duration.
+const IMAGE_EXTENSIONS = new Set([
+  ".bmp", ".gif", ".heic", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp",
+]);
+
 function extensionOf(path: string): string {
   const match = /(?:^|[\\/])[^\\/]*(\.[^.\\/]+)$/.exec(path);
   return match?.[1]?.toLocaleLowerCase("en-US") ?? "";
+}
+
+function mediaKindForPath(path: string, probedKind: SourceRecord["kind"]): SourceRecord["kind"] {
+  return IMAGE_EXTENSIONS.has(extensionOf(path)) ? "image" : probedKind;
 }
 
 export async function discoverSourceFiles(projectRoot: string, sourceRoots: string[]): Promise<string[]> {
@@ -147,7 +157,14 @@ export async function refreshSourceManifest(
     const canonical = await realpath(sourceFile);
     const prior = previousByPath.get(comparablePath(canonical));
     const info = await stat(canonical);
-    if (prior && prior.size === info.size && prior.mtime === info.mtime.toISOString()) {
+    if (
+      prior
+      && prior.size === info.size
+      && prior.mtime === info.mtime.toISOString()
+      // Re-index legacy manifests where ffprobe classified a PNG/JPEG as a
+      // one-frame video, even if the media file itself did not change.
+      && prior.kind === mediaKindForPath(canonical, prior.kind)
+    ) {
       entries.push(prior);
     } else {
       const next = await buildSourceRecord(projectRoot, canonical);
