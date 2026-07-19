@@ -103,4 +103,19 @@ describe("Ollama Bootstrap Utilities", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toBe("error: out of disk space");
   });
+
+  test("pullModel handles a missing executable without crashing the process", async () => {
+    mockSpawn.mockImplementation(() => {
+      const proc = new EventEmitter() as any;
+      proc.stdout = new EventEmitter();
+      proc.stderr = new EventEmitter();
+      setTimeout(() => proc.emit("error", Object.assign(new Error("spawn ollama ENOENT"), { code: "ENOENT" })), 5);
+      return proc;
+    });
+
+    await expect(pullModel("llama3.1:8b", () => {})).resolves.toEqual({
+      ok: false,
+      error: "spawn ollama ENOENT",
+    });
+  });
 });

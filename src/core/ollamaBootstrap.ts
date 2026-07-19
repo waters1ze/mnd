@@ -8,7 +8,7 @@ export const REQUIRED_LOCAL_MODELS = {
   vision: "llava:7b",
 } as const;
 
-function getOllamaPath(): string {
+export function getOllamaExecutable(): string {
   if (process.platform === "win32") {
     const localAppData = process.env["LOCALAPPDATA"] ?? "";
     const defaultWinPath = join(localAppData, "Programs", "Ollama", "ollama.exe");
@@ -22,7 +22,7 @@ function getOllamaPath(): string {
 
 export async function isOllamaInstalled(): Promise<boolean> {
   return new Promise((resolve) => {
-    const cmd = getOllamaPath();
+    const cmd = getOllamaExecutable();
     const proc = spawn(cmd, ["--version"]);
     proc.on("exit", (code) => {
       resolve(code === 0);
@@ -35,7 +35,7 @@ export async function isOllamaInstalled(): Promise<boolean> {
 
 export async function listPulledModels(): Promise<string[]> {
   return new Promise((resolve) => {
-    const cmd = getOllamaPath();
+    const cmd = getOllamaExecutable();
     const proc = spawn(cmd, ["list"]);
     let out = "";
     proc.stdout?.on("data", (d: Buffer) => {
@@ -68,7 +68,7 @@ export async function pullModel(
   onProgress: (percent: number, rawLine: string) => void
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
-    const cmd = getOllamaPath();
+    const cmd = getOllamaExecutable();
     const proc = spawn(cmd, ["pull", modelName]);
     let errorOutput = "";
 

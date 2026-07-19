@@ -11,6 +11,7 @@ import { getModelCatalog } from "../models/modelCatalog.js";
 import type { DiscoveredModel } from "../models/types.js";
 import { OllamaPullProgress } from "./OllamaPullProgress.js";
 import { getVerifiedAntigravity, discoverAntigravityCli, type AntigravityDiscoveryResult } from "../integrations/antigravityDiscovery.js";
+import { antigravityStatusLabel, looksLikeApiSecret, safeConfigDisplayValue } from "./serviceStatus.js";
 
 type SectionName = "profile" | "connections" | "models" | "fallback" | "export";
 const SECTIONS: SectionName[] = ["profile", "connections", "models", "fallback", "export"];
@@ -80,8 +81,14 @@ export function ConfigScreen(): React.ReactElement {
   const { exit } = useApp();
 
   useEffect(() => {
+    let active = true;
     loadConfig().then(setCfg).catch(console.error);
-    getVerifiedAntigravity().then(setAgvStatus).catch(console.error);
+    setAgvScanning(true);
+    getVerifiedAntigravity()
+      .then((result) => { if (active) setAgvStatus(result); })
+      .catch(() => { if (active) setAgvStatus({ status: "error", checkedCandidates: [] }); })
+      .finally(() => { if (active) setAgvScanning(false); });
+    return () => { active = false; };
   }, []);
 
   const saveFieldValue = async (val: any) => {
@@ -151,7 +158,11 @@ export function ConfigScreen(): React.ReactElement {
               return;
             }
             if (selected.availability === "not_installed" && selected.local) {
-              setPullingModel(selected.value);
+              if (field.kind === "model" && field.provider === "ollama") {
+                setPullingModel(selected.value);
+                return;
+              }
+              setEditError("This model cannot be installed through Ollama");
               return;
             }
             if (field.kind === "antigravity") {
@@ -229,8 +240,10 @@ export function ConfigScreen(): React.ReactElement {
       return;
     }
     if (key.return) {
-      setEditBuffer((field.kind !== "antigravity" && field.kind !== "action") ? field.getValue(cfg) : "");
-      setEditError("");
+      const currentValue = (field.kind !== "antigravity" && field.kind !== "action") ? field.getValue(cfg) : "";
+      const hiddenSecret = field.kind === "text" && field.label === "Groq API Key Ref" && looksLikeApiSecret(currentValue);
+      setEditBuffer(hiddenSecret ? "" : currentValue);
+      setEditError(hiddenSecret ? "Secret hidden. Enter a reference such as groq_api_key." : "");
       
       if (field.kind === "select") {
         setOptions(field.options);
@@ -347,11 +360,10 @@ export function ConfigScreen(): React.ReactElement {
               }
             } else {
               if (f.kind === "antigravity") {
-                if (agvScanning) return `${prefix}Antigravity: detecting...`;
-                if (!agvStatus) return `${prefix}Antigravity: Loading...`;
+                if (agvScanning || !agvStatus) return `${prefix}Antigravity: ${antigravityStatusLabel(true)}`;
                 let st = agvStatus.status;
                 if (st === "operation_verified" || st === "transport_ready") return [
-                  `${prefix}Antigravity: ${st === "operation_verified" ? "✓ Verified" : "⚠ Started"}`,
+                  `${prefix}Antigravity: ${antigravityStatusLabel(false, st)}`,
                   `      Version: ${agvStatus.installation?.version || "unknown"}`,
                   `      Location: ${agvStatus.installation?.executablePath}`,
                   `      [Enter] Select model  [R] Rescan  [D] Diagnostics`
@@ -365,7 +377,8 @@ export function ConfigScreen(): React.ReactElement {
                   `      [R] Rescan  [D] Diagnostics`
                 ].join("\n");
               }
-              return `${prefix}${f.label}: ${val}`;
+              const displayValue = f.kind === "text" && f.label === "Groq API Key Ref" ? safeConfigDisplayValue(val) : val;
+              return `${prefix}${f.label}: ${displayValue}`;
             }
           });
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text, useInput } from "ink";
-import chalk from "chalk";
 import { spawn, type ChildProcess } from "node:child_process";
 import { registerProcess, unregisterProcess } from "../core/cancellation.js";
+import { getInstallInstructions, getOllamaExecutable } from "../core/ollamaBootstrap.js";
 
 export type PullState =
   | { status: "idle" }
@@ -35,7 +35,7 @@ export function OllamaPullProgress({ model, host, onSuccess, onCancel }: Props):
   useInput((input, key) => {
     if (state.status === "confirming") {
       if (key.return) {
-        startPull();
+        void startPull();
       } else if (key.escape || (input.toLowerCase() === 'n')) {
         onCancel();
       }
@@ -59,10 +59,23 @@ export function OllamaPullProgress({ model, host, onSuccess, onCancel }: Props):
   });
 
   function startPull() {
-    setState({ status: "pulling", model, message: "starting pull..." });
+    setState({ status: "pulling", model, message: "Starting download..." });
     const env = { ...process.env, OLLAMA_HOST: host };
-    const child = spawn("ollama", ["pull", model], { env, stdio: ["ignore", "pipe", "pipe"] });
+    const executable = getOllamaExecutable();
+    const child = spawn(executable, ["pull", model], { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     setCp(child);
+    let settled = false;
+
+    const unregister = () => {
+      if (child.pid) unregisterProcess(child.pid);
+    };
+
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      unregister();
+      setState({ status: "error", model, message });
+    };
     
     if (child.pid) {
       registerProcess({
@@ -94,15 +107,23 @@ export function OllamaPullProgress({ model, host, onSuccess, onCancel }: Props):
       if (msg) setState(prev => prev.status === "pulling" ? { ...prev, message: msg } : prev);
     });
 
-    child.on("close", (code) => {
-      if (child.pid) unregisterProcess(child.pid);
+    child.once("error", (error: NodeJS.ErrnoException) => {
+      const hint = getInstallInstructions(process.platform);
+      const missing = error.code === "ENOENT" ? `Ollama is not installed. Run: ${hint}` : `Could not start Ollama: ${error.message}`;
+      fail(missing);
+    });
+
+    child.once("close", (code) => {
+      if (settled) return;
+      settled = true;
+      unregister();
       if (code === 0) {
         setState({ status: "success", model });
         setTimeout(onSuccess, 1000);
       } else {
         setState(prev => {
           if (prev.status === "cancelled") return prev;
-          return { status: "error", model, message: `Exited with code ${code}` };
+          return { status: "error", model, message: `Ollama exited with code ${code}` };
         });
       }
     });
