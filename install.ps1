@@ -8,6 +8,7 @@ param(
     [string]$Repository = "waters1ze/mnd",
     [string]$Branch = "main",
     [string]$SourceArchive = "",
+    [string]$ExpectedCommit = "",
     [switch]$SkipPython,
     [switch]$SkipPath
 )
@@ -88,6 +89,9 @@ if ($Repository -notmatch "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") {
 if ($Branch -notmatch "^[A-Za-z0-9._/-]+$") {
     throw "Invalid Git branch name: $Branch"
 }
+if ($ExpectedCommit -and $ExpectedCommit -notmatch "^[a-f0-9]{40}$") {
+    throw "ExpectedCommit must be a full Git commit SHA."
+}
 
 $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 $installDriveRoot = [IO.Path]::GetPathRoot($InstallRoot)
@@ -102,6 +106,7 @@ $launcherPath = Join-Path $binDirectory "mnd.cmd"
 $workDirectory = Join-Path ([IO.Path]::GetTempPath()) ("mnd-install-" + [Guid]::NewGuid().ToString("N"))
 $archivePath = Join-Path $workDirectory "mnd.zip"
 $extractDirectory = Join-Path $workDirectory "source"
+$installedCommit = $ExpectedCommit
 
 Write-Host ""
 Write-Host "  MND installer" -ForegroundColor Magenta
@@ -130,6 +135,12 @@ try {
         $downloadUrl = "https://github.com/$Repository/archive/refs/heads/$Branch.zip"
         Invoke-WebRequest -UseBasicParsing -Uri $downloadUrl -OutFile $archivePath
         Write-Host "Downloaded: $downloadUrl" -ForegroundColor DarkGray
+        if (-not $installedCommit) {
+            try {
+                $commitInfo = Invoke-RestMethod -Headers @{ "User-Agent" = "MND-Installer"; "Accept" = "application/vnd.github+json" } -Uri "https://api.github.com/repos/$Repository/commits/$Branch"
+                if ($commitInfo.sha -match "^[a-f0-9]{40}$") { $installedCommit = [string]$commitInfo.sha }
+            } catch { Write-Host "Could not record the GitHub commit for automatic updates." -ForegroundColor DarkGray }
+        }
     }
 
     Write-Step "Checking and extracting the archive"
@@ -184,6 +195,10 @@ try {
     $backupDirectory = Join-Path $InstallRoot "app.previous"
     if (Test-Path -LiteralPath $backupDirectory) {
         Remove-Item -LiteralPath $backupDirectory -Recurse -Force
+    }
+    if ($installedCommit) {
+        $marker = @{ repository = $Repository; branch = $Branch; commit = $installedCommit; installedAt = [DateTime]::UtcNow.ToString("o") } | ConvertTo-Json
+        [IO.File]::WriteAllText((Join-Path $appDirectory ".mnd-update.json"), $marker + [Environment]::NewLine, [Text.Encoding]::UTF8)
     }
     if (Test-Path -LiteralPath $appDirectory) {
         Move-Item -LiteralPath $appDirectory -Destination $backupDirectory
@@ -246,10 +261,12 @@ try {
 
     Write-Step "Creating the global mnd command"
     New-Item -ItemType Directory -Path $binDirectory -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $appDirectory "mnd-update.ps1") -Destination (Join-Path $binDirectory "mnd-update.ps1") -Force
     $launcher = @'
 @echo off
 set "MND_INSTALL_ROOT=%~dp0.."
 if exist "%~dp0..\python\Scripts\python.exe" set "MND_PYTHON_PATH=%~dp0..\python\Scripts\python.exe"
+if not "%MND_SKIP_UPDATE%"=="1" powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0mnd-update.ps1" -InstallRoot "%MND_INSTALL_ROOT%"
 node "%~dp0..\app\dist\index.js" %*
 '@
     [IO.File]::WriteAllText($launcherPath, $launcher, [Text.Encoding]::ASCII)
