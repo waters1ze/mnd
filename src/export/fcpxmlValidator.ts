@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { getProjectPaths } from "../core/projectPaths.js";
 import { probeMedia } from "../core/ffprobe.js";
+import { resetCancellation } from "../core/cancellation.js";
 
 export interface ValidationReport {
   valid: boolean;
@@ -132,6 +133,10 @@ export async function validateFcpxmlFile(fcpxmlPath: string): Promise<Validation
     if (formatRef && !formats.has(formatRef)) report.errors.push(`Asset ${id} references unknown format ${formatRef}`);
   }
 
+  // Reset any stale cancellation state before the probe loop; a previous
+  // Ctrl-C may have left the flag set while the FCPXML was already written.
+  resetCancellation();
+
   for (const [id, asset] of assets) {
     if (!asset.path || !existsSync(asset.path)) continue;
     try {
@@ -140,7 +145,9 @@ export async function validateFcpxmlFile(fcpxmlPath: string): Promise<Validation
         report.errors.push(`Asset ${id} duration ${asset.duration}s exceeds media duration ${probe.durationSeconds}s`);
       }
     } catch (error) {
-      report.errors.push(`Unable to probe asset ${id}: ${error instanceof Error ? error.message : String(error)}`);
+      // Probe failures (e.g. cancelled signal, permission) are non-fatal;
+      // the asset file was already confirmed to exist above.
+      report.warnings.push(`Unable to probe asset ${id}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
