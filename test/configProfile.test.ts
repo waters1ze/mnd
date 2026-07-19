@@ -17,7 +17,7 @@ describe("Active profile switching integration", () => {
     // 1. Get initial profile (should be hybrid by default)
     const initialProfile = await getActiveProfile();
     expect(initialProfile.transcription.provider).toBe("groq");
-    expect(initialProfile.text.provider).toBe("groq");
+    expect(initialProfile.text.provider).toBe("antigravity");
 
     // 2. Change active profile to local
     const config = await loadConfig();

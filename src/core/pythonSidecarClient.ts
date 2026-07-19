@@ -12,6 +12,17 @@ function nextId(): string {
 }
 
 async function getPythonBin(): Promise<string> {
+  const explicitPython = process.env["MND_PYTHON_PATH"]?.trim();
+  if (explicitPython) {
+    const { execFileSync } = await import("node:child_process");
+    try {
+      execFileSync(explicitPython, ["--version"], { stdio: "ignore", windowsHide: true });
+      return explicitPython;
+    } catch {
+      throw new Error(`MND_PYTHON_PATH does not point to a working Python executable: ${explicitPython}`);
+    }
+  }
+
   // Try python3 first, then python
   const { execFileSync } = await import("node:child_process");
   for (const bin of ["python3", "python"]) {
