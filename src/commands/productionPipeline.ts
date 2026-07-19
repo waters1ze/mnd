@@ -647,7 +647,7 @@ export const handleAutoEdit: CommandHandler = async (args) => {
   stopSpinner(`${ICONS.plan}  Edit plan ready`);
   startSpinner(`${ICONS.export}  Building & exporting FCPXML…`);
   await handleEdit(["build", "--project", slug], `auto build ${slug}`);
-  await handleExport(["resolve", "--project", slug], `auto export ${slug}`);
+  await handleExport(["retry", "--project", slug], `auto export ${slug}`);
   stopSpinner(`${ICONS.export}  FCPXML exported`);
   startSpinner(`${ICONS.publish}  Generating title, description & thumbnail…`);
   const publishPackage = await generatePublishPackage({
