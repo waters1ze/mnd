@@ -59,10 +59,10 @@ function frameTime(frames: number, timeline: CompiledTimelineV1): string {
   return `${numerator / divisor}/${denominator / divisor}s`;
 }
 
-function sourceDurationFrames(source: SourceRecord, timeline: CompiledTimelineV1): number {
+function sourceDurationFrames(source: SourceRecord, timeline: CompiledTimelineV1, minFrames = 0): number {
   if (source.kind === "image") return Math.max(timeline.durationFrames, 1);
   const frames = Math.ceil(source.durationSeconds * timeline.fps.numerator / timeline.fps.denominator - 1e-9);
-  return Math.max(frames, 1);
+  return Math.max(frames, minFrames, 1);
 }
 
 function audioRole(kind: TrackKind): string {
@@ -180,11 +180,23 @@ export function generateFcpxml(
     '<resources>',
     `<format id="r1" name="FFVideoFormat${timeline.resolution.height}p" frameDuration="${frameTime(1, timeline)}" width="${timeline.resolution.width}" height="${timeline.resolution.height}" colorSpace="1-1-1 (Rec. 709)"/>`,
   ];
+  // Pre-compute the maximum sourceEnd (in frames) actually used from each source
+  // across all tracks. This ensures the asset duration always covers what's cut,
+  // even if the manifest's durationSeconds is stale or underreported by ffprobe.
+  const maxSourceEndFrames = new Map<string, number>();
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      const prev = maxSourceEndFrames.get(clip.sourceId) ?? 0;
+      maxSourceEndFrames.set(clip.sourceId, Math.max(prev, clip.sourceStartFrames + clip.sourceDurationFrames));
+    }
+  }
+
   for (const [index, source] of orderedSources.entries()) {
     const ref = resourceId(index);
+    const minFrames = maxSourceEndFrames.get(source.id) ?? 0;
     const attributes = [
       `id="${ref}"`, `name="${xml(basename(source.canonicalPath))}"`, `uid="${xml(source.sha256)}"`,
-      'start="0s"', `duration="${frameTime(sourceDurationFrames(source, timeline), timeline)}"`,
+      'start="0s"', `duration="${frameTime(sourceDurationFrames(source, timeline, minFrames), timeline)}"`,
       `hasVideo="${source.videoStreams.length > 0 || source.kind === "image" ? 1 : 0}"`,
       `hasAudio="${source.audioStreams.length > 0 ? 1 : 0}"`,
     ];
