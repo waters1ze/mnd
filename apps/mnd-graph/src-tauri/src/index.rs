@@ -231,19 +231,57 @@ fn collect_notes(
         }
         if metadata.is_dir() {
             let name = entry.file_name();
-            if name != ".mnd" && name != ".obsidian" {
+            if name != ".mnd" && name != ".obsidian" && name != ".git" && name != "node_modules" {
                 collect_notes(&path, vault, output)?;
             }
             continue;
         }
-        if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
-            continue;
-        }
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
         let relative = path
             .strip_prefix(vault)
             .map_err(|_| "INDEX_PATH_ESCAPE")?
             .to_string_lossy()
             .replace('\\', "/");
+        if extension != "md" {
+            let node_type = match extension.as_str() {
+                "mp4" | "mov" | "mkv" | "webm" | "avi" | "mxf" | "m4v" | "3gp" => "source_video",
+                "mp3" | "wav" | "m4a" | "flac" | "ogg" | "opus" | "aac" | "aif" | "aiff" => {
+                    "audio_asset"
+                }
+                "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "tif" | "tiff" | "heic" => {
+                    "image"
+                }
+                "fcpxml" | "xml" => "timeline",
+                "srt" | "vtt" => "subtitle",
+                _ => "asset",
+            };
+            let modified = metadata
+                .modified()
+                .ok()
+                .and_then(|value| value.duration_since(std::time::SystemTime::UNIX_EPOCH).ok())
+                .map(|value| value.as_nanos())
+                .unwrap_or(0);
+            output.push(ParsedNote {
+                checksum: hash(&format!("{relative}:{}:{modified}", metadata.len())),
+                node: Node {
+                    id: format!("path_{}", &hash(&relative.to_lowercase())[..24]),
+                    title: path.file_name().unwrap_or_default().to_string_lossy().into_owned(),
+                    path: relative,
+                    node_type: node_type.to_string(),
+                    tags: vec![node_type.to_string()],
+                    properties: serde_json::json!({ "size": metadata.len(), "extension": extension }),
+                    links: Vec::new(),
+                    content: String::new(),
+                    is_unresolved: false,
+                },
+                links: Vec::new(),
+            });
+            continue;
+        }
         let content = fs::read_to_string(&path).map_err(|error| format!("{relative}:{error}"))?;
         let id = frontmatter_value(&content, "mnd_id")
             .filter(|value| !value.is_empty())
@@ -392,16 +430,20 @@ fn insert_notes(
 #[tauri::command]
 pub fn rebuild_vault_index(state: State<'_, VaultState>) -> Result<String, String> {
     let vault = active_root(&state)?;
+    rebuild_vault_index_path(&vault)
+}
+
+pub fn rebuild_vault_index_path(vault: &Path) -> Result<String, String> {
     let mut notes = Vec::new();
-    collect_notes(&vault, &vault, &mut notes)?;
+    collect_notes(vault, vault, &mut notes)?;
     notes.sort_by(|left, right| left.node.path.cmp(&right.node.path));
-    let mut connection = open_database(&vault)?;
+    let mut connection = open_database(vault)?;
     initialize_schema(&connection)?;
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;
     clear_index(&transaction)?;
-    let count = insert_notes(&transaction, &vault, &notes)?;
+    let count = insert_notes(&transaction, vault, &notes)?;
     transaction
         .execute(
             "INSERT OR REPLACE INTO index_metadata (key, value) VALUES ('last_rebuild', ?1)",
@@ -409,7 +451,7 @@ pub fn rebuild_vault_index(state: State<'_, VaultState>) -> Result<String, Strin
         )
         .map_err(|error| error.to_string())?;
     transaction.commit().map_err(|error| error.to_string())?;
-    Ok(format!("Rebuilt {count} notes"))
+    Ok(format!("Rebuilt {count} files"))
 }
 
 fn node_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Node> {
@@ -429,7 +471,11 @@ fn node_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Node> {
 #[tauri::command]
 pub fn load_graph(state: State<'_, VaultState>) -> Result<GraphData, String> {
     let vault = active_root(&state)?;
-    let connection = open_database(&vault)?;
+    load_graph_path(&vault)
+}
+
+pub fn load_graph_path(vault: &Path) -> Result<GraphData, String> {
+    let connection = open_database(vault)?;
     initialize_schema(&connection)?;
     let mut node_statement = connection
         .prepare("SELECT n.id, n.title, f.path, n.frontmatter, n.content FROM nodes n JOIN files f ON f.id = n.file_id ORDER BY n.id")

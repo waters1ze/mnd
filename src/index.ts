@@ -43,6 +43,7 @@ import {
   handleProject,
   handleScenes,
   handleTranscribeProduction,
+  handleAutoEdit,
 } from "./commands/productionPipeline.js";
 import { emitResult, isJsonMode, setJsonMode, structuredError } from "./core/output.js";
 import { stopSidecar } from "./core/pythonSidecarClient.js";
@@ -145,6 +146,7 @@ async function main(): Promise<void> {
     { name: "scenes", handler: handleScenes },
     { name: "edit", handler: handleEdit },
     { name: "export", handler: handleExport },
+    { name: "auto", handler: handleAutoEdit },
     { name: "prompt", handler: handlePrompt },
     { name: "approve", handler: async () => handleExport(["resolve"], "export resolve") },
     { name: "fix", handler: handleFix },

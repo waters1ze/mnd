@@ -73,6 +73,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "scenes", slash: "/scenes", icon: "S", description: "Show detected scenes and scores", acceptsArgs: false, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
   { name: "edit", slash: "/edit", icon: "E", description: "Plan, validate, build, or inspect editing", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
   { name: "export", slash: "/export", icon: "X", description: "Build a DaVinci Resolve export bundle", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
+  { name: "auto", slash: "/auto", icon: "A", description: "Scan a folder, edit with Antigravity, and export FCPXML", acceptsArgs: true },
   { name: "prompt", slash: "/prompt", icon: "✎", description: "Edit the edit plan with a text instruction", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
   { name: "approve", slash: "/approve", icon: "✓", description: "Export the approved plan to .fcpxml", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidPlan, !ctx.project?.hasValidPlan ? "No completed valid plan" : undefined) },
   { name: "fix", slash: "/fix", icon: "⚒", description: "Fix a described error in the last run", acceptsArgs: true, availability: ctx => avail(!!ctx.project, !ctx.project ? "No project is open" : undefined) },
@@ -132,17 +133,21 @@ export function parseInput(raw: string): {
   unquotedTokens: string[];
 } {
   const quotedArgs: string[] = [];
-  let cleaned = raw.replace(/"([^"]*)"/g, (_, m: string) => {
-    quotedArgs.push(m);
-    return "";
-  });
-  // also handle single-quoted
-  cleaned = cleaned.replace(/'([^']*)'/g, (_, m: string) => {
-    quotedArgs.push(m);
-    return "";
-  });
-
-  const tokens = cleaned.trim().split(/\s+/).filter(Boolean);
+  const tokens: string[] = [];
+  const matcher = /"((?:\\.|[^"\\])*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = matcher.exec(raw)) !== null) {
+    if (match[1] !== undefined) {
+      const value = match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      quotedArgs.push(value);
+      tokens.push(value);
+    } else if (match[2] !== undefined) {
+      quotedArgs.push(match[2]);
+      tokens.push(match[2]);
+    } else if (match[3] !== undefined) {
+      tokens.push(match[3]);
+    }
+  }
   const firstWord = (tokens[0] ?? "").toLowerCase();
   const fullCommand = tokens.slice(0, 2).join(" ").toLowerCase();
 
@@ -158,14 +163,14 @@ export async function route(rawInput: string): Promise<void> {
   }
   if (!input) return;
 
-  const { firstWord, fullCommand, quotedArgs, unquotedTokens } = parseInput(input);
+  const { firstWord, fullCommand, unquotedTokens } = parseInput(input);
 
   // 1. Try exact multi-word match first (e.g. "show history", "full new")
   for (const mwc of MULTI_WORD_COMMANDS) {
     if (fullCommand === mwc || input.toLowerCase().startsWith(mwc)) {
       const entry = findEntry(mwc);
       if (entry) {
-        const args = [...quotedArgs, ...unquotedTokens.slice(2)];
+        const args = unquotedTokens.slice(2);
         await entry.handler(args, input);
         return;
       }
@@ -175,7 +180,7 @@ export async function route(rawInput: string): Promise<void> {
   // 2. Try exact single-word match
   const exactEntry = findEntry(firstWord);
   if (exactEntry) {
-    const args = [...quotedArgs, ...unquotedTokens.slice(1)];
+    const args = unquotedTokens.slice(1);
     await exactEntry.handler(args, input);
     return;
   }
@@ -202,7 +207,7 @@ export async function route(rawInput: string): Promise<void> {
       }
       const entry = findEntry(command);
       if (entry) {
-        const args = [...quotedArgs, ...unquotedTokens.slice(1)];
+        const args = unquotedTokens.slice(1);
         await entry.handler(args, input);
         return;
       }

@@ -40,7 +40,7 @@ const DEFAULT_CONFIG: MndConfig = {
   models: {
     hybrid: {
       transcription: { provider: "groq", model: "whisper-large-v3" },
-      text: { provider: "groq", model: "llama-3.3-70b-versatile" },
+      text: { provider: "antigravity", model: "Gemini 3.5 Flash (Medium)" },
       vision: { provider: "groq", model: "llama-3.2-90b-vision-preview" },
       image_gen: { provider: "antigravity" },
     },
@@ -127,7 +127,8 @@ export async function getActiveProfile(): Promise<ProfileModels> {
 }
 
 export function resolveVaultPath(cfg: MndConfig): string {
-  return resolve(cfg.vault_path.replace(/^~/, homedir()));
+  const configured = process.env["MND_VAULT_PATH"] || cfg.vault_path;
+  return resolve(configured.replace(/^~/, homedir()));
 }
 
 export function resolveInboxPath(cfg: MndConfig): string {

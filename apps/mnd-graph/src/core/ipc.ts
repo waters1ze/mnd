@@ -28,6 +28,34 @@ export interface DirectoryEntry {
   mediaKind: string;
 }
 
+export interface AntigravityInfo {
+  status: 'ready' | 'not_found' | 'unavailable';
+  executablePath: string | null;
+  version: string | null;
+  models: string[];
+}
+
+export interface VaultInventory {
+  totalFiles: number;
+  mediaFiles: number;
+  markdownFiles: number;
+  totalBytes: number;
+  byKind: Record<string, number>;
+}
+
+export interface AutoEditResult {
+  ok: boolean;
+  status: string;
+  projectId: string;
+  projectSlug: string;
+  model: string | null;
+  sourceCount: number;
+  fcpxmlPath: string;
+  fcpxmlRelativePath?: string;
+  exportBundlePath: string;
+  validationPath: string;
+}
+
 export async function selectVaultDirectory(): Promise<{ candidateId: string; displayPath: string; displayName: string }> {
   return await invoke('select_vault_directory');
 }
@@ -142,4 +170,16 @@ export async function copyVaultSafely(vaultId: string, destination: string): Pro
 
 export async function openVaultInObsidian(vaultId: string): Promise<void> {
   return await invoke('open_vault_in_obsidian', { vaultId });
+}
+
+export async function getAntigravityInfo(): Promise<AntigravityInfo> {
+  return await invoke('get_antigravity_info');
+}
+
+export async function scanVaultInventory(vaultId: string): Promise<VaultInventory> {
+  return await invoke('scan_vault_inventory', { vaultId });
+}
+
+export async function runAutoEdit(vaultId: string, prompt: string, model: string, projectName: string): Promise<AutoEditResult> {
+  return await invoke('run_auto_edit', { vaultId, prompt, model, projectName });
 }

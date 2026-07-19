@@ -483,13 +483,18 @@ export async function runSetupWizard(validator = defaultGroqValidator): Promise<
       inbox_path: join(homedir(), "Desktop", "mnd-inbox"),
       connections: {
         groq_api_key_ref: "groq_api_key",
-        antigravity_cli_path: process.platform === "win32" ? "antigravity" : "/usr/local/bin/antigravity",
+        antigravity: {
+          discovery_mode: "auto",
+          cached_executable_path: null,
+          cached_version: null,
+          last_verified_at: null,
+        },
         ollama_host: "http://localhost:11434",
       },
       models: {
         hybrid: {
           transcription: { provider: "groq", model: "whisper-large-v3" },
-          text: { provider: "groq", model: "llama-3.3-70b-versatile" },
+          text: { provider: "antigravity", model: "Gemini 3.5 Flash (Medium)" },
           vision: { provider: "groq", model: "llama-3.2-90b-vision-preview" },
           image_gen: { provider: "antigravity" },
         },

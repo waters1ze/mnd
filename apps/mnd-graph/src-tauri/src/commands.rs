@@ -58,11 +58,9 @@ fn classify_path(path: &Path) -> Classification {
     let compatible = fs::read_dir(path)
         .map(|entries| {
             entries.flatten().all(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                entry.path().is_dir()
-                    || name.ends_with(".md")
-                    || name.ends_with(".base")
-                    || name == ".gitignore"
+                fs::symlink_metadata(entry.path())
+                    .map(|metadata| !metadata.file_type().is_symlink())
+                    .unwrap_or(false)
             })
         })
         .unwrap_or(false);
@@ -336,7 +334,10 @@ pub fn initialize_vault(
     Ok(vault_id)
 }
 
-fn get_active_root(state: &State<'_, VaultState>, vault_id: &str) -> Result<PathBuf, String> {
+pub(crate) fn get_active_root(
+    state: &State<'_, VaultState>,
+    vault_id: &str,
+) -> Result<PathBuf, String> {
     let id_lock = state.active_vault_id.lock().unwrap();
     let path_lock = state.active_vault_path.lock().unwrap();
 
@@ -613,7 +614,7 @@ mod tests {
         fs::write(unknown.path().join("archive.bin"), [0_u8, 1, 2]).expect("unknown file");
         assert_eq!(
             classify_path(unknown.path()),
-            Classification::UnknownNonemptyDirectory
+            Classification::CompatibleExistingVault
         );
     }
 

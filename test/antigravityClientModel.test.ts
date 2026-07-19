@@ -1,78 +1,45 @@
-import { generateImage, stopAntigravity } from "../src/core/antigravityClient.js";
+import { runAntigravityPrompt, stopAntigravity } from "../src/core/antigravityClient.js";
+import { spawn } from "node:child_process";
 
-let mockModel: string | undefined = undefined;
+let configuredModel: string | undefined;
 
-jest.mock("node:fs/promises", () => ({
-  realpath: jest.fn(async (value: string) => value),
-  stat: jest.fn().mockResolvedValue({ isFile: () => true, mtimeMs: 12345, size: 1024 })
-}));
-
-jest.mock("../src/core/sourceManifest.js", () => ({
-  hashFileStream: jest.fn().mockResolvedValue("b".repeat(64))
-}));
-
-jest.mock("../src/core/config.js", () => ({
-  loadConfig: jest.fn().mockImplementation(async () => {
-    return {
-      profile: "test",
-      models: {
-        test: {
-          image_gen: { model: mockModel }
-        }
-      }
-    };
+jest.mock("node:child_process", () => ({
+  spawn: jest.fn(() => {
+    const { EventEmitter } = jest.requireActual("node:events") as typeof import("node:events");
+    const child = new EventEmitter() as import("node:child_process").ChildProcessWithoutNullStreams;
+    child.stdout = new EventEmitter() as import("node:stream").Readable;
+    child.stderr = new EventEmitter() as import("node:stream").Readable;
+    child.kill = jest.fn().mockReturnValue(true);
+    queueMicrotask(() => { child.stdout.emit("data", Buffer.from("MND_OK\n")); child.emit("close", 0); });
+    return child;
   }),
-  updateConfigField: jest.fn().mockResolvedValue(undefined)
 }));
-
+jest.mock("../src/core/config.js", () => ({
+  loadConfig: jest.fn().mockImplementation(async () => ({ profile: "hybrid", models: { hybrid: { text: { model: configuredModel } } } })),
+  updateConfigField: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock("../src/integrations/antigravityDiscovery.js", () => ({
   getVerifiedAntigravity: jest.fn().mockResolvedValue({
-    status: "operation_verified",
-    installation: { executablePath: "antigravity.exe", verifiedCapabilities: {} }
-  })
+    status: "transport_ready",
+    installation: { executablePath: "C:\\mock\\agy.exe", models: [{ id: "Default Model" }], verifiedCapabilities: {}, stage: "transport_ready" },
+  }),
 }));
 
-let sentPayload: string | null = null;
-
-jest.mock("../src/core/persistentProcess.js", () => {
-  return {
-    PersistentProcess: jest.fn().mockImplementation((opts) => ({
-      opts,
-      start: jest.fn().mockResolvedValue(undefined),
-      stop: jest.fn(),
-      send: jest.fn().mockImplementation(async (req) => {
-        sentPayload = req;
-        return JSON.stringify({ outputPath: "test.png" });
-      })
-    }))
-  };
-});
-
 describe("antigravityClientModel", () => {
-  beforeEach(() => {
-    mockModel = undefined;
-    sentPayload = null;
+  beforeEach(() => { configuredModel = undefined; jest.clearAllMocks(); });
+  afterEach(async () => { await stopAntigravity(); });
+
+  it("uses the first discovered model when configuration is automatic", async () => {
+    await expect(runAntigravityPrompt("reply exactly")).resolves.toBe("MND_OK");
+    expect(jest.mocked(spawn).mock.calls[0]?.[1]).toEqual(expect.arrayContaining(["--model", "Default Model"]));
   });
 
-  afterEach(async () => {
-    await stopAntigravity();
-  });
-
-  it("omits model property when Auto is selected", async () => {
-    mockModel = undefined; // Auto
-    await generateImage("test prompt");
-    expect(sentPayload).not.toBeNull();
-    const parsed = JSON.parse(sentPayload!);
-    expect(parsed.payload).not.toHaveProperty("model");
-    expect(parsed.payload.prompt).toBe("test prompt");
-  });
-
-  it("includes model property when explicitly selected", async () => {
-    mockModel = "custom-model-id";
-    await generateImage("test prompt");
-    expect(sentPayload).not.toBeNull();
-    const parsed = JSON.parse(sentPayload!);
-    expect(parsed.payload).toHaveProperty("model", "custom-model-id");
-    expect(parsed.payload.prompt).toBe("test prompt");
+  it("passes the explicitly selected conversation model to agy without a shell", async () => {
+    configuredModel = "Claude Sonnet 4.6 (Thinking)";
+    await runAntigravityPrompt("reply exactly");
+    const [command, args, options] = jest.mocked(spawn).mock.calls[0]!;
+    expect(command).toBe("C:\\mock\\agy.exe");
+    expect(args).toEqual(expect.arrayContaining(["--print", "reply exactly", "--model", configuredModel, "--mode", "plan"]));
+    expect(options).toMatchObject({ windowsHide: true, shell: false, stdio: ["ignore", "pipe", "pipe"] });
   });
 });

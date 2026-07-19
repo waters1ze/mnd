@@ -1,14 +1,99 @@
 @import "tailwindcss";
 
 @theme {
-  --color-mnd-dark: #121212;
-  --color-mnd-sidebar: #1e1e1e;
-  --color-mnd-accent: #007acc;
+  --color-mnd-dark: #070910;
+  --color-mnd-sidebar: #0d111b;
+  --color-mnd-accent: #8b5cf6;
 }
+
+:root { color-scheme: dark; }
+
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--color-mnd-dark);
-  color: #fff;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #070910;
+  color: #f8fafc;
 }
+
+button, input, select, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgb(167 139 250 / 75%);
+  outline-offset: 2px;
+}
+
+::selection { background: rgb(139 92 246 / 35%); }
+
+.app-shell {
+  background:
+    radial-gradient(circle at 76% 12%, rgb(124 58 237 / 13%), transparent 28rem),
+    radial-gradient(circle at 28% 88%, rgb(34 211 238 / 8%), transparent 30rem),
+    #070910;
+}
+
+.activity-bar { background: rgb(9 12 20 / 92%); backdrop-filter: blur(24px); }
+.workspace-sidebar { background: rgb(12 16 26 / 94%); backdrop-filter: blur(24px); }
+
+.brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgb(167 139 250 / 28%);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgb(139 92 246 / 35%), rgb(34 211 238 / 12%));
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 10px 35px rgb(76 29 149 / 28%);
+}
+
+.activity-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+.activity-button:hover { border-color: rgb(255 255 255 / 8%); background: rgb(255 255 255 / 5%); color: #cbd5e1; }
+.activity-button-active { border-color: rgb(167 139 250 / 23%); background: rgb(139 92 246 / 14%); color: #c4b5fd; box-shadow: inset 0 0 20px rgb(139 92 246 / 5%); }
+
+.glass-card { border: 1px solid rgb(255 255 255 / 8%); border-radius: 16px; background: linear-gradient(145deg, rgb(255 255 255 / 5%), rgb(255 255 255 / 2%)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%); }
+.status-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 11px; }
+.icon-button { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border: 1px solid rgb(255 255 255 / 8%); border-radius: 11px; background: rgb(255 255 255 / 4%); color: #94a3b8; transition: 160ms ease; }
+.icon-button:hover:not(:disabled) { background: rgb(255 255 255 / 8%); color: white; }
+.icon-button:disabled { cursor: not-allowed; opacity: .45; }
+
+.field-label { display: block; margin-bottom: 7px; color: #94a3b8; font-size: 11px; font-weight: 600; letter-spacing: .025em; }
+.field-control { width: 100%; border: 1px solid rgb(255 255 255 / 9%); border-radius: 12px; background: rgb(2 6 23 / 65%); padding: 10px 12px; color: #e2e8f0; font-size: 12px; transition: 160ms ease; }
+.field-control:hover:not(:disabled) { border-color: rgb(167 139 250 / 26%); }
+.field-control:focus { border-color: rgb(167 139 250 / 45%); background: rgb(2 6 23 / 86%); }
+.field-control:disabled { cursor: not-allowed; opacity: .5; }
+.field-control::placeholder { color: #475569; }
+
+.status-pill { border: 1px solid currentColor; border-radius: 999px; padding: 3px 7px; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.status-ready { color: #6ee7b7; background: rgb(16 185 129 / 8%); }
+.status-error { color: #fda4af; background: rgb(244 63 94 / 8%); }
+
+.primary-button, .secondary-button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; padding: 0 14px; font-size: 12px; font-weight: 650; transition: 160ms ease; }
+.primary-button { border: 1px solid rgb(196 181 253 / 22%); background: linear-gradient(135deg, #7c3aed, #6366f1); color: white; box-shadow: 0 12px 35px rgb(91 33 182 / 28%); }
+.primary-button:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+.secondary-button { border: 1px solid rgb(255 255 255 / 9%); background: rgb(255 255 255 / 4%); color: #cbd5e1; }
+.secondary-button:hover:not(:disabled) { background: rgb(255 255 255 / 8%); color: white; }
+.primary-button:disabled, .secondary-button:disabled { cursor: not-allowed; opacity: .4; box-shadow: none; }
+
+.custom-scrollbar { scrollbar-color: rgb(100 116 139 / 45%) transparent; scrollbar-width: thin; }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { border-radius: 999px; background: rgb(100 116 139 / 45%); }
+
+@media (max-width: 1150px) { .studio-panel { width: 340px; } }
+@media (max-width: 900px) { .workspace-sidebar { width: 240px; } .studio-panel { position: absolute; inset-block: 0; right: 0; z-index: 30; width: min(390px, calc(100vw - 64px)); box-shadow: -30px 0 60px rgb(0 0 0 / 45%); } }

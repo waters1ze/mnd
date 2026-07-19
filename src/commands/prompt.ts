@@ -2,7 +2,9 @@
 import chalk from "chalk";
 import { loadConfig, resolveVaultPath } from "../core/config.js";
 import { loadProjectState, saveProjectState } from "../core/projectState.js";
+import { getProjectPaths } from "../core/projectPaths.js";
 import { groqChatWithFallback } from "../core/groqClient.js";
+import { runAntigravityPrompt } from "../core/antigravityClient.js";
 import { session } from "../repl/loop.js";
 import { theme } from "../ui/theme.js";
 import { startThinking, stopThinking } from "../ui/thinkingIndicator.js";
@@ -59,7 +61,13 @@ Schema:
 
   const stop = startThinking("Updating edit plan...");
   try {
-    const { result } = await groqChatWithFallback(messages, "prompt", true);
+    const activeTextModel = cfg.models[cfg.profile].text;
+    const result = activeTextModel.provider === "antigravity"
+      ? await runAntigravityPrompt(
+          `${messages[0]!.content}\n\n${messages[1]!.content}`,
+          { ...(activeTextModel.model ? { model: activeTextModel.model } : {}), addDirectories: [getProjectPaths(vaultPath, slug).root], mode: "plan" },
+        )
+      : (await groqChatWithFallback(messages, "prompt", true)).result;
     stop();
 
     // Parse response

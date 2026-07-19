@@ -28,6 +28,13 @@ describe("parseInput()", () => {
     expect(result.quotedArgs).toEqual(["Error 1", "Error 2"]);
   });
 
+  test("preserves flags and quoted values in their original order", () => {
+    const result = parseInput('auto --folder "D:\\My Footage" --prompt "fast edit" --model "Gemini 3.5 Flash (Low)"');
+    expect(result.unquotedTokens).toEqual([
+      "auto", "--folder", "D:\\My Footage", "--prompt", "fast edit", "--model", "Gemini 3.5 Flash (Low)",
+    ]);
+  });
+
   test("first word lowercased", () => {
     const result = parseInput("ANALYZE");
     expect(result.firstWord).toBe("analyze");

@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { discoverGraphExecutable } from './graph-discovery.js';
 
 export async function handleGraph(subcommand?: string, args?: string | string[]) {
@@ -30,13 +31,14 @@ export async function handleGraph(subcommand?: string, args?: string | string[])
     spawnArgs.push('--node', nodeId);
   }
 
-  if (sub === 'rebuild') {
-    console.log(JSON.stringify({ status: 'rebuild_started' }));
-    return;
-  }
-
-  if (sub === 'status') {
-    console.log(JSON.stringify({ executable, vault: vaultPath, status: 'ok' }));
+  if (sub === 'rebuild' || sub === 'status' || sub === 'node') {
+    await new Promise<void>((resolve, reject) => {
+      execFile(executable, spawnArgs, { shell: false, windowsHide: true, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+        if (error) return reject(new Error(stderr.trim() || error.message));
+        if (stdout.trim()) console.log(stdout.trim());
+        resolve();
+      });
+    });
     return;
   }
 

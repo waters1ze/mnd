@@ -1,6 +1,6 @@
 import { handleGraph } from './graph.js';
 import { discoverGraphExecutable } from './graph-discovery.js';
-import { spawn } from 'child_process';
+import { execFile, spawn } from 'child_process';
 
 jest.mock('./graph-discovery');
 jest.mock('child_process');
@@ -15,6 +15,14 @@ describe('graph command', () => {
     (discoverGraphExecutable as jest.Mock).mockReturnValue({ path: '/mock/path', mode: 'dev' });
     process.env.MND_VAULT_PATH = '/mock/vault';
     (spawn as jest.Mock).mockReturnValue({ unref: jest.fn() });
+    (execFile as unknown as jest.Mock).mockImplementation((_command, args, _options, callback) => {
+      const sub = args[2];
+      callback(null, JSON.stringify(sub === 'rebuild'
+        ? { status: 'completed', message: 'Rebuilt 3 files' }
+        : sub === 'node'
+          ? { id: '123', title: 'Node' }
+          : { status: 'ready', nodes: 3, edges: 1 }), '');
+    });
   });
 
   afterEach(() => {
@@ -37,17 +45,17 @@ describe('graph command', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('invalid_node_id'));
 
     await handleGraph('node', ['123']);
-    expect(spawn).toHaveBeenCalledWith('/mock/path', ['/mock/vault', '--cmd', 'node', '--node', '123'], { shell: false, detached: true, stdio: 'ignore' });
+    expect(execFile).toHaveBeenCalledWith('/mock/path', ['/mock/vault', '--cmd', 'node', '--node', '123'], expect.objectContaining({ shell: false }), expect.any(Function));
   });
 
   it('rebuild returns structured result', async () => {
     await handleGraph('rebuild');
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('rebuild_started'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Rebuilt 3 files'));
   });
 
   it('status returns metadata', async () => {
     await handleGraph('status');
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('status":"ok"'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('status":"ready"'));
   });
 
   it('returns executable_not_found when missing', async () => {

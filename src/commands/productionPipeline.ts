@@ -26,7 +26,7 @@ import { validateEditPlan } from "../pipeline/editPlanValidator.js";
 import { compileTimeline } from "../pipeline/timelineCompiler.js";
 import { exportResolveBundle } from "../export/fcpxmlExporter.js";
 import { validateFcpxmlFile } from "../export/fcpxmlValidator.js";
-import { listRules } from "../core/vault.js";
+import { createProject, listRules, slugify } from "../core/vault.js";
 import type {
   EditPlanV1,
   EditProfile,
@@ -350,12 +350,21 @@ async function createPlan(args: string[]): Promise<{ plan: EditPlanV1; validatio
   const baseline = buildAutomaticEditPlan(ctx.project.id, manifest, analyses, transcripts, options);
   const deterministic = args.includes("--deterministic");
   const instruction = flagValue(args, "--instruction");
+  const config = await loadConfig();
+  const configuredProvider = config.models[config.profile].text.provider;
+  const providerValue = flagValue(args, "--provider") ?? (configuredProvider === "antigravity" ? "antigravity" : "groq");
+  if (providerValue !== "antigravity" && providerValue !== "groq") {
+    throw new Error(`Unsupported edit-plan provider: ${providerValue}`);
+  }
+  const requestedModel = flagValue(args, "--model");
   const rules = await listRules(ctx.vaultPath);
   const plan = deterministic
     ? baseline
     : await refineEditPlanWithAi(baseline, manifest, analyses, transcripts, ctx.paths.root, {
         instructions: instruction ? [instruction] : [],
         styleRules: rules.map((rule) => rule.body),
+        provider: providerValue,
+        ...(requestedModel ? { model: requestedModel } : {}),
       });
   const validation = validateEditPlan(plan, manifest, ctx.paths.root);
   if (!validation.valid) throw new Error(`Edit plan validation failed: ${validation.issues.map((issue) => issue.message).join("; ")}`);
@@ -454,4 +463,89 @@ export const handleExport: CommandHandler = async (args) => {
     return;
   }
   throw new Error("Usage: /export resolve|validate|reveal|retry");
+};
+
+const AUTO_MEDIA_EXTENSIONS = new Set([
+  ".3gp", ".aac", ".aif", ".aiff", ".avi", ".bmp", ".flac", ".gif", ".heic",
+  ".jpeg", ".jpg", ".m4a", ".m4v", ".mkv", ".mov", ".mp3", ".mp4", ".mxf",
+  ".ogg", ".opus", ".png", ".tif", ".tiff", ".wav", ".webm", ".webp",
+]);
+
+async function scanMediaFolder(root: string): Promise<string[]> {
+  const excludedDirectories = new Set([".git", ".mnd", ".obsidian", "node_modules", "Projects", "Exports"]);
+  const found: string[] = [];
+  async function visit(directory: string): Promise<void> {
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((left, right) => left.name.localeCompare(right.name, "en"));
+    for (const entry of entries) {
+      if (excludedDirectories.has(entry.name)) continue;
+      const path = join(directory, entry.name);
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        await visit(path);
+      } else if (entry.isFile() && AUTO_MEDIA_EXTENSIONS.has(extname(entry.name).toLocaleLowerCase("en-US"))) {
+        found.push(path);
+      }
+    }
+  }
+  await visit(root);
+  return found;
+}
+
+function appendForwardedFlag(sourceArgs: string[], targetArgs: string[], flag: string): void {
+  const value = flagValue(sourceArgs, flag);
+  if (value) targetArgs.push(flag, value);
+}
+
+export const handleAutoEdit: CommandHandler = async (args) => {
+  resetCancellation();
+  setupSignalHandlers();
+  const cfg = await loadConfig();
+  const vaultPath = resolveVaultPath(cfg);
+  const requestedFolder = flagValue(args, "--folder") ?? vaultPath;
+  const canonicalFolder = await realpath(resolve(requestedFolder));
+  const folderInfo = await stat(canonicalFolder);
+  if (!folderInfo.isDirectory()) throw new Error(`Auto-edit source is not a directory: ${canonicalFolder}`);
+  const prompt = flagValue(args, "--prompt") ?? positionalArgs(args, [
+    "--folder", "--prompt", "--model", "--name", "--profile", "--aspect", "--fps",
+    "--target-duration", "--pacing", "--broll", "--music-level",
+  ]).join(" ");
+  if (!prompt.trim()) throw new Error("Usage: /auto --folder <path> --prompt <editing instructions> [--model <Antigravity model>]");
+  const projectName = flagValue(args, "--name") ?? `${basename(canonicalFolder)} Auto Edit`;
+  const slug = slugify(projectName) || `auto-edit-${Date.now()}`;
+  const paths = getProjectPaths(vaultPath, slug);
+  if (!existsSync(paths.projectJson) && !existsSync(paths.projectMd)) {
+    await createProject(vaultPath, projectName, "antigravity-auto");
+  }
+  session.currentProjectSlug = slug;
+  const project = await loadProjectFile(vaultPath, slug);
+  const mediaFiles = await scanMediaFolder(canonicalFolder);
+  if (mediaFiles.length === 0) throw new Error(`No supported media files were found in ${canonicalFolder}`);
+  emitProgress(`Importing ${mediaFiles.length} media file(s)...`);
+  for (const mediaFile of mediaFiles) await copyIntoSources(mediaFile, paths.sourcesDir, paths.root);
+  const refreshed = await refreshManifest({ vaultPath, slug, paths, project });
+  emitProgress(`Analyzing ${refreshed.manifest.entries.length} source(s)...`);
+  await handleAnalyzeProduction(["--project", slug], `auto analyze ${slug}`);
+  const editArgs = ["plan", "--project", slug, "--provider", "antigravity", "--instruction", prompt];
+  const model = flagValue(args, "--model");
+  if (model) editArgs.push("--model", model);
+  for (const flag of ["--profile", "--aspect", "--fps", "--target-duration", "--pacing", "--broll", "--music-level"]) {
+    appendForwardedFlag(args, editArgs, flag);
+  }
+  if (args.includes("--deterministic")) editArgs.push("--deterministic");
+  emitProgress(`Creating the edit plan${model ? ` with ${model}` : ""}...`);
+  await handleEdit(editArgs, `auto edit ${slug}`);
+  await handleEdit(["build", "--project", slug], `auto build ${slug}`);
+  await handleExport(["resolve", "--project", slug], `auto export ${slug}`);
+  emitResult({
+    ok: true,
+    status: "completed",
+    projectId: project.id,
+    projectSlug: slug,
+    model: model ?? null,
+    sourceCount: refreshed.manifest.entries.length,
+    fcpxmlPath: paths.timelineFcpxml,
+    exportBundlePath: paths.exportBundleDir,
+    validationPath: paths.validationReportJson,
+  }, `Auto edit completed. Open in DaVinci Resolve: ${paths.timelineFcpxml}`);
 };

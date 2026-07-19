@@ -49,22 +49,22 @@ export async function refreshCatalog(): Promise<DiscoveredModel[]> {
       discoveredAt: new Date().toISOString()
     };
 
-    const antigravityModel: DiscoveredModel = {
-      id: "antigravity",
-      provider: "antigravity",
-      capabilities: ["image_generation"],
-      availability: cfg.connections.antigravity?.cached_executable_path ? "available" : "not_installed",
-      displayName: "Antigravity CLI",
-      local: true,
-      installed: !!cfg.connections.antigravity?.cached_executable_path,
-      source: "live",
-      discoveredAt: new Date().toISOString()
-    };
+    const antigravityModels: DiscoveredModel[] = (cfg.connections.antigravity?.cached_models ?? []).map(model => ({
+      id: model.id,
+      provider: "antigravity" as const,
+      capabilities: ["text"],
+      availability: "available" as const,
+      displayName: model.id,
+      local: false,
+      installed: true,
+      source: "live" as const,
+      discoveredAt: new Date().toISOString(),
+    }));
 
     const groqModels = await fetchGroqModels(cfg.connections.groq_api_key_ref);
     const ollamaModels = await fetchOllamaModels(cfg.connections.ollama_host);
 
-    const results = [sidecarModel, antigravityModel, ...groqModels, ...ollamaModels];
+    const results = [sidecarModel, ...antigravityModels, ...groqModels, ...ollamaModels];
     
     // Validate current configured models against the results.
     // If a configured model is missing, we append it as "unavailable" or "unknown"

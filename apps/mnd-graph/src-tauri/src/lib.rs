@@ -6,6 +6,7 @@ pub mod obsidian;
 pub mod security;
 pub mod state;
 pub mod watcher;
+pub mod workflow;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -55,6 +56,9 @@ pub fn run() {
             config::get_app_config,
             config::set_active_vault,
             config::forget_recent_vault,
+            workflow::get_antigravity_info,
+            workflow::scan_vault_inventory,
+            workflow::run_auto_edit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

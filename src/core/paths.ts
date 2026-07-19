@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolve } from "node:path";
 import { loadConfig, resolveVaultPath } from "./config.js";
 import { session } from "../repl/loop.js";
 
@@ -8,6 +9,9 @@ import { session } from "../repl/loop.js";
  * Uses %LOCALAPPDATA%/mnd on Windows, ~/.config/mnd on macOS/Linux.
  */
 export function getAppDataDir(): string {
+  if (process.env.MND_APP_DATA) {
+    return resolve(process.env.MND_APP_DATA);
+  }
   if (process.platform === "win32" && process.env.LOCALAPPDATA) {
     return join(process.env.LOCALAPPDATA, "mnd");
   }

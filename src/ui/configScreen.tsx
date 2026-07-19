@@ -43,14 +43,12 @@ const SECTION_FIELDS: Record<SectionName, ConfigField[]> = {
     { kind: "antigravity", label: "Antigravity Status" },
   ],
   models: [
-    { kind: "model", provider: "groq", label: "Hybrid Text Model", getValue: c => c.models.hybrid.text.model ?? "", setValue: (c, v) => c.models.hybrid.text.model = v },
+    { kind: "model", provider: "antigravity", label: "Antigravity Conversation Model", getValue: c => c.models.hybrid.text.model ?? "", setValue: (c, v) => { c.models.hybrid.text.provider = "antigravity"; c.models.hybrid.text.model = v; } },
     { kind: "model", provider: "groq", label: "Hybrid Transcription Model", getValue: c => c.models.hybrid.transcription.model ?? "", setValue: (c, v) => c.models.hybrid.transcription.model = v },
     { kind: "model", provider: "groq", label: "Hybrid Vision Model", getValue: c => c.models.hybrid.vision.model ?? "", setValue: (c, v) => c.models.hybrid.vision.model = v },
-    { kind: "model", provider: "antigravity", label: "Hybrid Image Model", getValue: c => c.models.hybrid.image_gen?.model ?? "", setValue: (c, v) => { if(c.models.hybrid.image_gen) { if (v) c.models.hybrid.image_gen.model = v; else delete c.models.hybrid.image_gen.model; } } },
     { kind: "model", provider: "ollama", label: "Local Text Model", getValue: c => c.models.local.text.model ?? "", setValue: (c, v) => c.models.local.text.model = v },
     { kind: "model", provider: "sidecar_whisper", label: "Local Transcription", getValue: c => c.models.local.transcription?.model ?? "", setValue: (c, v) => { if(c.models.local.transcription) c.models.local.transcription.model = v; } },
     { kind: "model", provider: "ollama", label: "Local Vision Model", getValue: c => c.models.local.vision.model ?? "", setValue: (c, v) => c.models.local.vision.model = v },
-    { kind: "model", provider: "antigravity", label: "Local Image Model", getValue: c => c.models.local.image_gen?.model ?? "", setValue: (c, v) => { if(c.models.local.image_gen) { if (v) c.models.local.image_gen.model = v; else delete c.models.local.image_gen.model; } } },
   ],
   fallback: [
     { kind: "boolean", label: "Auto Switch to Local", getValue: c => String(c.fallback.auto_switch_to_local_on_groq_failure), setValue: (c, v) => c.fallback.auto_switch_to_local_on_groq_failure = v },

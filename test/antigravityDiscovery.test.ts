@@ -1,139 +1,77 @@
-import { discoverAntigravityCli, getVerifiedAntigravity, invalidateAntigravityCache } from "../src/integrations/antigravityDiscovery.js";
-import { EventEmitter } from "events";
+import { discoverAntigravityCli, getVerifiedAntigravity, invalidateAntigravityCache, verifyCandidate } from "../src/integrations/antigravityDiscovery.js";
 
-jest.mock("node:fs", () => ({
-  existsSync: jest.fn().mockReturnValue(true)
-}));
+let mode: "ready" | "wrong" | "no_models" = "ready";
 
-jest.mock("node:fs/promises", () => ({
-  stat: jest.fn().mockResolvedValue({ size: 1024, mtimeMs: 12345 })
-}));
-
-jest.mock("../src/core/sourceManifest.js", () => ({
-  hashFileStream: jest.fn().mockResolvedValue("a".repeat(64))
-}));
-
-jest.mock("node:child_process", () => ({
-  execFile: jest.fn((cmd, args, optionsOrCb, cbOrNone) => {
-    let cb;
-    let argsArray = args;
-    if (typeof optionsOrCb === "function") {
-      cb = optionsOrCb;
-    } else {
-      cb = cbOrNone;
-    }
-
-    if (cmd === "where" || cmd === "which" || cmd === "reg.exe") {
-      return cb(null, "C:\\mock\\antigravity.exe\n", "");
-    }
-    
-    // Simulate real behavior based on test state
-    if (cmd.includes("antigravity")) {
-      const mode = (global as any).__mockAntigravityMode || "normal";
-      
-      if (mode === "not_antigravity") {
-        if (argsArray.includes("--help")) return cb(null, "Usage: someapp\n", "");
-        if (argsArray.includes("--version")) return cb(null, "1.0\n", "");
-      }
-      
-      if (mode === "no_json") {
-        if (argsArray.includes("--help")) return cb(null, "Usage: antigravity\n", "");
-        if (argsArray.includes("--version")) return cb(null, "antigravity 1.0\n", "");
-      }
-      
-      if (mode === "stderr") {
-        if (argsArray.includes("--help")) return cb(null, "", "Usage: antigravity\n--json-io\n");
-        if (argsArray.includes("--version")) return cb(null, "", "antigravity 1.0\n");
-      }
-
-      if (argsArray.includes("--help")) {
-        return cb(null, "Usage: antigravity [options]\n--json-io Enable JSON IO\nAntigravity version 1.0.0\n", "");
-      }
-      if (argsArray.includes("--version")) {
-        return cb(null, "antigravity 1.0.0\n", "");
-      }
-    }
-    cb(new Error("Command failed"), null, "");
-  }),
-  spawn: jest.fn((cmd, args) => {
-    const proc = new EventEmitter() as any;
-    proc.kill = jest.fn();
-    proc.stderr = new EventEmitter();
-    proc.stdout = new EventEmitter();
-    const mode = (global as any).__mockAntigravitySmoke || "pass";
-    proc.stdin = {
-      write: jest.fn((payload: string) => {
-        if (mode === "crash") return;
-        const request = JSON.parse(payload.trim());
-        setTimeout(() => proc.stdout.emit("data", Buffer.from(`${JSON.stringify({
-          id: request.id,
-          ok: true,
-          protocolVersion: "1",
-          capabilities: ["models.list"],
-          models: [{ id: "ag-test", capabilities: ["models.list"] }]
-        })}\n`)), 1);
-      }),
-      end: jest.fn()
-    };
-    
-    if (mode === "crash") {
-      setTimeout(() => proc.emit("exit", 1), 10);
-    }
-    
-    return proc;
-  })
-}));
-
+jest.mock("node:fs", () => ({ existsSync: jest.fn().mockReturnValue(true) }));
+jest.mock("node:fs/promises", () => ({ stat: jest.fn().mockResolvedValue({ size: 1024, mtimeMs: 12345 }) }));
+jest.mock("../src/core/sourceManifest.js", () => ({ hashFileStream: jest.fn().mockResolvedValue("a".repeat(64)) }));
 jest.mock("../src/core/config.js", () => ({
-  loadConfig: jest.fn().mockResolvedValue({ connections: {} }),
-  updateConfigField: jest.fn().mockResolvedValue(undefined)
+  loadConfig: jest.fn().mockResolvedValue({ connections: { antigravity: null } }),
+  updateConfigField: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock("node:child_process", () => ({
+  execFile: jest.fn((command: string, args: string[], _options: unknown, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
+    if (/where(?:\.exe)?$|which$/i.test(command)) return callback(null, "C:\\mock\\agy.exe\n", "");
+    if (mode === "wrong") return callback(null, args.includes("--version") ? "1.0" : "Usage: another tool", "");
+    if (args.includes("--version")) return callback(null, "1.1.4\n", "");
+    if (args.includes("--help")) return callback(null, "Usage: agy [OPTIONS]\n--print <PROMPT>\n--model <MODEL>\n--print-timeout <DURATION>\nAvailable subcommands:\nmodels\nagents\n", "");
+    if (args.includes("models")) return callback(null, mode === "no_models" ? "Available models:\n" : "Available models:\nGemini 3.5 Flash (Medium)\nClaude Sonnet 4.6 (Thinking)\n", "");
+    return callback(new Error("unexpected command"), "", "");
+  }),
+  spawn: jest.fn((command: string, args: string[]) => {
+    const { EventEmitter } = jest.requireActual("node:events") as typeof import("node:events");
+    const child = new EventEmitter() as import("node:child_process").ChildProcessWithoutNullStreams;
+    child.stdout = new EventEmitter() as import("node:stream").Readable;
+    child.stderr = new EventEmitter() as import("node:stream").Readable;
+    child.kill = jest.fn().mockReturnValue(true);
+    queueMicrotask(() => {
+      let stdout = "";
+      if (mode === "wrong") stdout = args.includes("--version") ? "1.0" : "Usage: another tool";
+      else if (args.includes("--version")) stdout = "1.1.4\n";
+      else if (args.includes("--help")) stdout = "Usage: agy [OPTIONS]\n--print <PROMPT>\n--model <MODEL>\n--print-timeout <DURATION>\nAvailable subcommands:\nmodels\nagents\n";
+      else if (args.includes("models")) stdout = mode === "no_models" ? "Available models:\n" : "Available models:\nGemini 3.5 Flash (Medium)\nClaude Sonnet 4.6 (Thinking)\n";
+      child.stdout.emit("data", Buffer.from(stdout));
+      child.emit("close", 0);
+    });
+    return child;
+  }),
 }));
 
 describe("antigravityDiscovery", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mode = "ready";
     invalidateAntigravityCache();
-    (global as any).__mockAntigravityMode = "normal";
-    (global as any).__mockAntigravitySmoke = "pass";
+    jest.clearAllMocks();
   });
 
-  it("coalesces discovery scans", async () => {
-    const p1 = discoverAntigravityCli();
-    const p2 = discoverAntigravityCli();
-    expect(p1).toBe(p2);
-    const res = await p1;
-    expect(res.status).toBe("transport_ready");
+  it("coalesces simultaneous discovery and parses the real agy model catalog", async () => {
+    const first = discoverAntigravityCli();
+    const second = discoverAntigravityCli();
+    expect(first).toBe(second);
+    const result = await first;
+    expect(result.status).toBe("transport_ready");
+    expect(result.installation?.models.map(item => item.id)).toEqual([
+      "Gemini 3.5 Flash (Medium)",
+      "Claude Sonnet 4.6 (Thinking)",
+    ]);
   });
 
-  it("RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY requires a correlated JSON handshake", async () => {
-    const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("transport_ready");
+  it("RELEASE_ASSERTION: R08-ANTIGRAVITY-DISCOVERY verifies the official agy print contract", async () => {
+    const result = await getVerifiedAntigravity(true);
+    expect(result.status).toBe("transport_ready");
+    expect(result.installation?.capabilities).toContain("chat.print");
   });
 
-  it("fails if not antigravity", async () => {
-    (global as any).__mockAntigravityMode = "not_antigravity";
-    const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("not_found");
-    expect(res.installation?.verifiedCapabilities).toBeUndefined();
+  it("rejects an executable that does not expose the official agy contract", async () => {
+    mode = "wrong";
+    const result = await verifyCandidate("C:\\mock\\agy.exe");
+    expect(result.stage).toBe("unsupported");
   });
 
-  it("fails if protocol missing", async () => {
-    (global as any).__mockAntigravityMode = "no_json";
-    const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("unsupported");
-    expect(res.installation?.verifiedCapabilities).toBeUndefined();
-  });
-
-  it("supports reading from stderr", async () => {
-    (global as any).__mockAntigravityMode = "stderr";
-    const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("transport_ready");
-  });
-
-  it("does not claim transport readiness if the process crashes before handshake", async () => {
-    (global as any).__mockAntigravityMode = "normal";
-    (global as any).__mockAntigravitySmoke = "crash";
-    const res = await getVerifiedAntigravity(true);
-    expect(res.status).toBe("protocol_advertised");
+  it("distinguishes verified identity from a usable model transport", async () => {
+    mode = "no_models";
+    const result = await verifyCandidate("C:\\mock\\agy.exe");
+    expect(result.stage).toBe("identity_verified");
+    expect(result.models).toEqual([]);
   });
 });

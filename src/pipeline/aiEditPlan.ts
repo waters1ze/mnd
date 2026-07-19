@@ -1,4 +1,5 @@
 import { groqChatWithFallback, type ChatMessage } from "../core/groqClient.js";
+import { runAntigravityPrompt } from "../core/antigravityClient.js";
 import type { EditPlanV1, SourceAnalysis, SourceManifest, TranscriptV1 } from "../types/production.js";
 import { validateEditPlan } from "./editPlanValidator.js";
 
@@ -13,6 +14,8 @@ function extractJson(raw: string): unknown {
 export interface AiEditContext {
   instructions: string[];
   styleRules: string[];
+  provider?: "antigravity" | "groq";
+  model?: string;
 }
 
 export async function refineEditPlanWithAi(
@@ -69,7 +72,12 @@ Supported effects are transform, opacity, crop, gain, ducking. Supported transit
   ];
   let lastError = "AI did not return a valid plan";
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const { result } = await groqChatWithFallback(messages, "edit_plan", true);
+    const result = context.provider === "antigravity"
+      ? await runAntigravityPrompt(
+          `${system}\n\nINPUT JSON:\n${JSON.stringify(payload)}${attempt > 0 ? `\n\nThe previous response failed deterministic validation: ${lastError}. Return a corrected complete EditPlanV1 JSON object.` : ""}`,
+          { ...(context.model ? { model: context.model } : {}), timeoutMs: 420_000, mode: "plan" },
+        )
+      : (await groqChatWithFallback(messages, "edit_plan", true)).result;
     try {
       const candidate = extractJson(result) as EditPlanV1;
       const report = validateEditPlan(candidate, manifest, projectRoot);

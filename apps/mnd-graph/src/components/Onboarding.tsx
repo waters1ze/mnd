@@ -47,7 +47,7 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
           createSet: previewResult.createSet
         });
       } else {
-        setError(`This destination cannot be opened safely (${type.replaceAll('_', ' ')}).`);
+        setError(`Эту папку нельзя безопасно открыть (${type.replaceAll('_', ' ')}).`);
       }
       
     } catch (err: any) {
@@ -81,17 +81,19 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 text-neutral-100 p-6 selection:bg-blue-500/30">
-      <div className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-8 space-y-8 relative overflow-hidden">
+    <div className="app-shell flex min-h-screen flex-col items-center justify-center p-6 text-slate-100">
+      <div className="pointer-events-none absolute left-[15%] top-[12%] h-72 w-72 rounded-full bg-violet-600/10 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-[10%] right-[15%] h-72 w-72 rounded-full bg-cyan-500/8 blur-3xl" />
+      <div className="relative w-full max-w-xl space-y-8 overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0e17]/88 p-9 shadow-[0_35px_100px_rgba(0,0,0,.48)] backdrop-blur-2xl">
         
         {/* Header */}
         <div className="space-y-2 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500/10 mb-4 ring-1 ring-blue-500/20">
-            <FolderOpen className="w-8 h-8 text-blue-400" />
+          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-violet-500/25 to-cyan-400/10 ring-1 ring-violet-400/25 shadow-[0_18px_50px_rgba(109,40,217,.24)]">
+            <FolderOpen className="h-8 w-8 text-violet-300" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-white">MND Graph Vault</h1>
-          <p className="text-neutral-400 text-sm">
-            Select a folder to use as your vault. Choose an existing vault or an empty folder to initialize a new one.
+          <p className="mx-auto max-w-md text-sm leading-relaxed text-slate-400">
+            Откройте папку с видео, аудио и заметками. MND аккуратно подключит её как vault, просканирует содержимое и подготовит рабочее пространство.
           </p>
         </div>
 
@@ -106,13 +108,13 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
         {/* Action area */}
         {!candidate ? (
           <div className="flex flex-col items-center justify-center pt-4">
-            <button 
+            <button
               onClick={handleSelectFolder} 
               disabled={loading}
-              className="group relative flex items-center justify-center gap-3 w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+              className="primary-button group w-full"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <FolderOpen className="w-5 h-5" />}
-              {loading ? 'Processing...' : 'Browse for Vault Folder'}
+              {loading ? 'Проверяем папку…' : 'Открыть папку'}
               {!loading && <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />}
             </button>
           </div>
@@ -120,8 +122,8 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-neutral-500 font-medium uppercase tracking-wider text-xs">Selected Path</span>
-                <span className="text-blue-400 font-mono text-xs px-2 py-0.5 rounded-md bg-blue-500/10">
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-500">Выбранная папка</span>
+                <span className="rounded-md bg-violet-500/10 px-2 py-0.5 font-mono text-xs text-violet-300">
                   {candidate.displayName}
                 </span>
               </div>
@@ -134,12 +136,12 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{classification === 'existing_mnd_vault' ? 'Existing MND vault is ready to open.' : 'Destination is ready for confirmed initialization.'}</span>
+                  <span>{classification === 'existing_mnd_vault' ? 'MND vault готов к открытию.' : 'Папка готова к безопасному подключению.'}</span>
                 </div>
                 
                 <div className="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
                   <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider sticky top-0 bg-neutral-950 pb-2">
-                    {preview.createSet.length === 0 ? 'No files will be changed' : 'Files to be created'}
+                    {preview.createSet.length === 0 ? 'Файлы не будут изменены' : 'Будут созданы служебные файлы'}
                   </p>
                   <ul className="space-y-1">
                     {preview.createSet.map((path, idx) => (
@@ -157,14 +159,14 @@ export function Onboarding({ onVaultSelected }: { onVaultSelected: (vaultId: str
                     disabled={loading}
                     className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors disabled:opacity-50"
                   >
-                    Cancel
+                    Отмена
                   </button>
                   <button 
                     onClick={handleConfirmInit}
                     disabled={loading}
                     className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : classification === 'existing_mnd_vault' ? 'Open Vault' : 'Initialize Vault'}
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : classification === 'existing_mnd_vault' ? 'Открыть vault' : 'Подключить папку'}
                   </button>
                 </div>
               </div>

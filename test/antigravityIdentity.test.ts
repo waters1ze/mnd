@@ -1,9 +1,9 @@
 import { getVerifiedAntigravity } from "../src/integrations/antigravityDiscovery.js";
 
 describe("Antigravity Discovery", () => {
-  it("should fail gracefully when offline", async () => {
+  it("returns a typed discovery result against the locally installed CLI", async () => {
     const res = await getVerifiedAntigravity(false);
     expect(res).toBeDefined();
     expect(typeof res.status).toBe("string");
-  });
+  }, 30_000);
 });

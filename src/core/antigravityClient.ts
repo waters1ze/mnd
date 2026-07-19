@@ -1,11 +1,15 @@
-import { loadConfig } from "./config.js";
-import { PersistentProcess } from "./persistentProcess.js";
-import { getVerifiedAntigravity } from "../integrations/antigravityDiscovery.js";
-import chalk from "chalk";
+import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
 import { realpath, stat } from "node:fs/promises";
-import { hashFileStream } from "./sourceManifest.js";
+import { getVerifiedAntigravity } from "../integrations/antigravityDiscovery.js";
+import { loadConfig, updateConfigField } from "./config.js";
 
-let _process: PersistentProcess | null = null;
+export interface AntigravityPromptOptions {
+  model?: string;
+  timeoutMs?: number;
+  addDirectories?: string[];
+  mode?: "plan" | "accept-edits";
+}
 
 export interface AssetClassification {
   type: string;
@@ -13,159 +17,120 @@ export interface AssetClassification {
   description: string;
 }
 
-export interface ThumbnailSpec {
-  title: string;
-  style: string;
-  keyframePath?: string;
-  plan?: string;
+let runningOperations = 0;
+
+function extractJson(raw: string): unknown {
+  const stripped = raw.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
+  const objectStart = stripped.indexOf("{");
+  const objectEnd = stripped.lastIndexOf("}");
+  if (objectStart < 0 || objectEnd <= objectStart) throw new Error("Antigravity response does not contain JSON");
+  return JSON.parse(stripped.slice(objectStart, objectEnd + 1));
 }
 
-async function getProcess(): Promise<PersistentProcess> {
-  if (_process) return _process;
-
-  const verifyResult = await getVerifiedAntigravity(false);
-  const cliPath = verifyResult.installation?.executablePath;
-
-  if ((verifyResult.status !== "operation_verified" && verifyResult.status !== "transport_ready") || !cliPath) {
-    throw new Error("Antigravity CLI is not verified or not configured.");
+export async function runAntigravityPrompt(prompt: string, options: AntigravityPromptOptions = {}): Promise<string> {
+  if (!prompt.trim()) throw new Error("Antigravity prompt cannot be empty");
+  const discovery = await getVerifiedAntigravity(false);
+  const executable = discovery.installation?.executablePath;
+  if (!executable || (discovery.status !== "transport_ready" && discovery.status !== "operation_verified")) {
+    throw new Error("Antigravity CLI (agy) is not installed or its model catalog is unavailable");
   }
-
-  _process = new PersistentProcess({
-    name: "Antigravity",
-    command: cliPath,
-    args: ["--non-interactive", "--json-io"],
-    healthCheckIntervalMs: 5_000,
-    responseTimeoutMs: 60_000,
-    // Do not guess readyPattern. We just assume it's ready once the process is started.
-  });
-
-  await _process.start();
-  return _process;
+  const config = await loadConfig();
+  const model = options.model || config.models[config.profile].text.model || discovery.installation?.models[0]?.id;
+  const timeoutMs = Math.max(10_000, Math.min(options.timeoutMs ?? 300_000, 900_000));
+  const args = ["--print", prompt, "--print-timeout", `${Math.ceil(timeoutMs / 1000)}s`, "--mode", options.mode ?? "plan"];
+  if (model) args.push("--model", model);
+  for (const directory of options.addDirectories ?? []) args.push("--add-dir", resolve(directory));
+  runningOperations += 1;
+  try {
+    const output = await new Promise<string>((resolveOutput, reject) => {
+      const child = spawn(executable, args, { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      const limit = 24 * 1024 * 1024;
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const finishError = (message: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(message));
+      };
+      child.stdout.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString("utf8");
+        if (stdout.length + stderr.length > limit) {
+          child.kill();
+          finishError("Antigravity CLI exceeded the 24 MiB output limit");
+        }
+      });
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString("utf8");
+        if (stdout.length + stderr.length > limit) {
+          child.kill();
+          finishError("Antigravity CLI exceeded the 24 MiB output limit");
+        }
+      });
+      child.once("error", (error) => finishError(`Antigravity CLI failed: ${error.message}`));
+      child.once("close", (code) => {
+        if (settled) return;
+        if (code !== 0) return finishError(`Antigravity CLI failed with code ${code}: ${stderr.trim() || "no diagnostic output"}`);
+        const result = stdout.trim();
+        if (!result) return finishError(`Antigravity CLI returned no output${stderr.trim() ? `: ${stderr.trim()}` : ""}`);
+        settled = true;
+        clearTimeout(timer);
+        resolveOutput(result);
+      });
+      const timer = setTimeout(() => {
+        child.kill();
+        finishError(`Antigravity CLI timed out after ${timeoutMs}ms`);
+      }, timeoutMs + 5_000);
+      timer.unref();
+    });
+    const verifiedAt = new Date().toISOString();
+    discovery.status = "operation_verified";
+    if (discovery.installation) {
+      discovery.installation.stage = "operation_verified";
+      discovery.installation.verifiedCapabilities.chat = { verifiedAt };
+    }
+    await updateConfigField((value) => {
+      if (value.connections.antigravity) value.connections.antigravity.last_verified_at = verifiedAt;
+    });
+    return output;
+  } finally {
+    runningOperations -= 1;
+  }
 }
 
-export function getAntigravityStatus(): ReturnType<PersistentProcess["getStatus"]> {
-  return _process?.getStatus() ?? { alive: false, queueLength: 0, state: "stopped" };
-}
-
-import { updateConfigField } from "./config.js";
-async function recordCapabilityVerified(capability: "classification" | "thumbnail" | "imageGeneration", executablePath: string): Promise<void> {
-  const executableStat = await stat(executablePath);
-  const sha256 = await hashFileStream(executablePath);
-
+export async function listAntigravityModels(): Promise<string[]> {
   const result = await getVerifiedAntigravity(false);
-  if (result.status === "transport_ready" || result.status === "operation_verified") {
-    result.status = "operation_verified";
-    if (result.installation) {
-      result.installation.stage = "operation_verified";
-      result.installation.verifiedCapabilities[capability] = { verifiedAt: new Date().toISOString() };
-    }
-  }
-
-  await updateConfigField(c => {
-    if (c.connections.antigravity) {
-       c.connections.antigravity.executable_mtime_ms = executableStat.mtimeMs;
-       c.connections.antigravity.executable_size = executableStat.size;
-       c.connections.antigravity.executable_sha256 = sha256;
-       c.connections.antigravity.last_verified_at = new Date().toISOString();
-    }
-  });
+  return result.installation?.models.map((model) => model.id) ?? [];
 }
 
-export async function classifyAsset(filePath: string): Promise<AssetClassification> {
-  const canonicalInput = await realpath(filePath);
-  const inputStat = await stat(canonicalInput);
-  if (!inputStat.isFile()) throw new Error(`Antigravity classification input is not a regular file: ${filePath}`);
-  const proc = await getProcess();
-  
-  if (process.env["MND_DEBUG"]) {
-    console.warn(chalk.yellow(`[Antigravity] action=classify file=${filePath}`));
+export async function classifyAsset(filePath: string, model?: string): Promise<AssetClassification> {
+  const canonical = await realpath(filePath);
+  const info = await stat(canonical);
+  if (!info.isFile()) throw new Error(`Asset is not a regular file: ${filePath}`);
+  const raw = await runAntigravityPrompt(
+    `Return only JSON with keys type (string), tags (string array), description (string). Classify this asset without changing files: ${canonical}`,
+    { ...(model ? { model } : {}), addDirectories: [dirname(canonical)], mode: "plan" },
+  );
+  const parsed = extractJson(raw) as Partial<AssetClassification>;
+  if (typeof parsed.type !== "string" || !Array.isArray(parsed.tags) || typeof parsed.description !== "string") {
+    throw new Error("Invalid Antigravity classification response");
   }
-  
-  const req = JSON.stringify({ action: "classify", payload: { filePath: canonicalInput } });
-  const resp = await proc.send(req);
-  let parsed: any;
-  try {
-    parsed = JSON.parse(resp);
-  } catch (err) {
-    throw new Error("Invalid JSON response from Antigravity: " + (err as Error).message);
-  }
-  if (!parsed || typeof parsed.type !== "string" || !Array.isArray(parsed.tags)) {
-    throw new Error("Invalid response format from Antigravity: missing type or tags");
-  }
-  
-  await recordCapabilityVerified("classification", proc.opts.command);
-  return parsed;
+  return parsed as AssetClassification;
 }
 
-export async function generateThumbnail(spec: ThumbnailSpec): Promise<string> {
-  const proc = await getProcess();
-  const cfg = await loadConfig();
-  const activeProfile = cfg.models[cfg.profile];
-  
-  const payload: any = { ...spec };
-  if (activeProfile?.image_gen?.model) {
-    payload.model = activeProfile.image_gen.model;
-  }
-  
-  if (process.env["MND_DEBUG"]) {
-    console.warn(chalk.yellow(`[Antigravity] action=thumbnail model=${payload.model || "auto"}`));
-  }
-  
-  const req = JSON.stringify({ action: "thumbnail", payload });
-  const resp = await proc.send(req);
-  let parsed: any;
-  try {
-    parsed = JSON.parse(resp);
-  } catch (err) {
-    throw new Error("Invalid JSON response from Antigravity: " + (err as Error).message);
-  }
-  if (!parsed || typeof parsed.outputPath !== "string") {
-    throw new Error("Invalid response format from Antigravity: missing outputPath");
-  }
-  const canonicalOutput = await realpath(parsed.outputPath);
-  const outputStat = await stat(canonicalOutput);
-  if (!outputStat.isFile()) throw new Error("Antigravity thumbnail output is not a regular file");
-  await hashFileStream(canonicalOutput);
-  
-  await recordCapabilityVerified("thumbnail", proc.opts.command);
-  return canonicalOutput;
+export async function generateThumbnail(_spec?: unknown): Promise<never> {
+  throw new Error("Antigravity CLI provides agent/chat orchestration, not a verified image-generation output contract");
 }
 
-export async function generateImage(prompt: string): Promise<string> {
-  const proc = await getProcess();
-  const cfg = await loadConfig();
-  const activeProfile = cfg.models[cfg.profile];
-  
-  const payload: any = { prompt };
-  if (activeProfile?.image_gen?.model) {
-    payload.model = activeProfile.image_gen.model;
-  }
-  
-  if (process.env["MND_DEBUG"]) {
-    console.warn(chalk.yellow(`[Antigravity] action=generate_image model=${payload.model || "auto"}`));
-  }
-  
-  const req = JSON.stringify({ action: "generate_image", payload });
-  const resp = await proc.send(req);
-  let parsed: any;
-  try {
-    parsed = JSON.parse(resp);
-  } catch (err) {
-    throw new Error("Invalid JSON response from Antigravity: " + (err as Error).message);
-  }
-  if (!parsed || typeof parsed.outputPath !== "string") {
-    throw new Error("Invalid response format from Antigravity: missing outputPath");
-  }
-  const canonicalOutput = await realpath(parsed.outputPath);
-  const outputStat = await stat(canonicalOutput);
-  if (!outputStat.isFile()) throw new Error("Antigravity image output is not a regular file");
-  await hashFileStream(canonicalOutput);
-  
-  await recordCapabilityVerified("imageGeneration", proc.opts.command);
-  return canonicalOutput;
+export async function generateImage(_prompt?: unknown): Promise<never> {
+  throw new Error("Antigravity CLI provides agent/chat orchestration, not a verified image-generation output contract");
+}
+
+export function getAntigravityStatus(): { alive: boolean; queueLength: number; state: string } {
+  return { alive: runningOperations > 0, queueLength: runningOperations, state: runningOperations > 0 ? "busy" : "ready" };
 }
 
 export async function stopAntigravity(): Promise<void> {
-  await _process?.stop();
-  _process = null;
+  // agy print mode is one-shot; there is no persistent child process to stop.
 }

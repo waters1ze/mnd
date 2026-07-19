@@ -87,12 +87,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2190,
+                  "duration": 3869,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-18T23:35:44.839Z",
+                  "startTime": "2026-07-19T00:30:54.207Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -102,7 +102,7 @@
           ],
           "id": "15ae009f7de2f6784187-8e93c9a3874284f0751b",
           "file": "graph.spec.ts",
-          "line": 47,
+          "line": 70,
           "column": 1
         },
         {
@@ -121,12 +121,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 253,
+                  "duration": 509,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-07-18T23:35:47.112Z",
+                  "startTime": "2026-07-19T00:30:58.168Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -136,7 +136,41 @@
           ],
           "id": "15ae009f7de2f6784187-36b03035643845853352",
           "file": "graph.spec.ts",
-          "line": 54,
+          "line": 77,
+          "column": 1
+        },
+        {
+          "title": "AI studio turns a prompt into a DaVinci timeline result",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 531,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-19T00:30:58.688Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "15ae009f7de2f6784187-c33cf4fd47aee7d3aed0",
+          "file": "graph.spec.ts",
+          "line": 90,
           "column": 1
         }
       ]
@@ -144,9 +178,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-07-18T23:35:43.477Z",
-    "duration": 4014.1040000000003,
-    "expected": 2,
+    "startTime": "2026-07-19T00:30:53.327Z",
+    "duration": 14169.894,
+    "expected": 3,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

@@ -244,20 +244,19 @@ async function checkIntegrations(args: DoctorArgs) {
   // Antigravity
   const agv = await getVerifiedAntigravity(args.fix);
   checks.push({ name: "Antigravity Identity", status: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "PASS" : (agv.status === "unsupported" ? "FAIL" : (agv.status === "not_found" ? "FAIL" : "WARN")), detail: agv.installation?.version ? `v${agv.installation.version}` : agv.status });
-  checks.push({ name: "Antigravity Protocol Advertised", status: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "PASS" : "WARN", detail: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "JSON Configured" : "None" });
+  checks.push({ name: "Antigravity Print Contract", status: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "PASS" : "WARN", detail: (agv.status === "transport_ready" || agv.status === "operation_verified") ? "agy --print and model catalog verified" : "Unavailable" });
   checks.push({
     name: "Antigravity Transport",
     status: agv.status === "operation_verified" ? "PASS" : agv.status === "transport_ready" ? "WARN" : "FAIL",
     detail: agv.status === "operation_verified"
       ? "Transport and at least one operation verified"
       : agv.status === "transport_ready"
-        ? "Handshake passed; operation verification pending"
+        ? "Print contract passed; chat operation verification pending"
         : `Unavailable (${agv.status})`,
   });
   
   const verifiedCapabilities = agv.installation?.verifiedCapabilities;
-  checks.push({ name: "Antigravity Image Operation", status: verifiedCapabilities?.imageGeneration ? "PASS" : "NOT RUN", detail: verifiedCapabilities?.imageGeneration ? `Verified ${verifiedCapabilities.imageGeneration.verifiedAt}` : "No successful image generation recorded" });
-  checks.push({ name: "Antigravity Thumbnail Operation", status: verifiedCapabilities?.thumbnail ? "PASS" : "NOT RUN", detail: verifiedCapabilities?.thumbnail ? `Verified ${verifiedCapabilities.thumbnail.verifiedAt}` : "No successful thumbnail generation recorded" });
+  checks.push({ name: "Antigravity Chat Operation", status: verifiedCapabilities?.chat ? "PASS" : "NOT RUN", detail: verifiedCapabilities?.chat ? `Verified ${verifiedCapabilities.chat.verifiedAt}` : "No successful agy --print operation recorded in this process" });
 
   // Obsidian
   const vp = cfg.vault_path;

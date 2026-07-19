@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-18T23:35:52.920Z",
+  "generatedAt": "2026-07-19T00:31:13.645Z",
   "overallStatus": "PARTIAL",
   "nativeBundleFound": true,
   "gates": {
@@ -165,10 +165,10 @@
       ],
       "cwd": "apps/mnd-graph",
       "exitCode": 0,
-      "durationMs": 2101,
+      "durationMs": 2367,
       "timedOut": false,
-      "stdout": "\n> mnd-graph@0.0.0 build\n> tsc -b && vite build\n\nvite v8.1.5 building client environment for production...\n\u001b[2K\rtransforming...✓ 1804 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.45 kB │ gzip:   0.29 kB\ndist/assets/index-DExdrlfe.css   24.18 kB │ gzip:   6.44 kB\ndist/assets/index-V2OHPB8t.js   400.22 kB │ gzip: 111.72 kB\n\n✓ built in 174ms\n",
-      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[lightningcss minify] Unknown at rule: @theme\n2  |  \n3  |  @layer theme {\n4  |    @theme default {\n   |          ^\n5  |      --font-sans:\n6  |        -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\",\n[lightningcss minify] Unknown at rule: @theme\n523 |  \n524 |    /* Deprecated */\n525 |    @theme default inline reference {\n    |          ^\n526 |      --blur: 8px;\n527 |      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);\n[lightningcss minify] Unknown at rule: @tailwind\n947 |  \n948 |  @layer utilities {\n949 |    @tailwind utilities;\n    |             ^\n950 |  }\n951 |  \n[lightningcss minify] Unknown at rule: @theme\n950 |  }\n951 |  \n952 |  @theme {\n    |        ^\n953 |    --color-mnd-dark: #121212;\n954 |    --color-mnd-sidebar: #1e1e1e;\n"
+      "stdout": "\n> mnd-graph@0.0.0 build\n> tsc -b && vite build\n\nvite v8.1.5 building client environment for production...\n\u001b[2K\rtransforming...✓ 1805 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.45 kB │ gzip:   0.30 kB\ndist/assets/index-CK09CQJB.css   44.85 kB │ gzip:   8.59 kB\ndist/assets/index-B95LR5EP.js   411.64 kB │ gzip: 115.54 kB\n\n✓ built in 375ms\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n"
     },
     {
       "id": "graph-lint",
@@ -180,7 +180,7 @@
       ],
       "cwd": "apps/mnd-graph",
       "exitCode": 0,
-      "durationMs": 185,
+      "durationMs": 184,
       "timedOut": false,
       "stdout": "\n> mnd-graph@0.0.0 lint\n> oxlint\n\n",
       "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n"
@@ -195,9 +195,9 @@
       ],
       "cwd": "apps/mnd-graph",
       "exitCode": 0,
-      "durationMs": 1292,
+      "durationMs": 1367,
       "timedOut": false,
-      "stdout": "\n> mnd-graph@0.0.0 test\n> vitest run --reporter=default --reporter=json --outputFile.json=vitest-report.json\n\n\n RUN  v4.1.10 D:/mnd proj/mnd/apps/mnd-graph\n\n ✓ src/App.test.tsx (3 tests) 24ms\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  02:35:42\n   Duration  824ms (transform 21ms, setup 0ms, import 155ms, tests 24ms, environment 513ms)\n\nJSON report written to D:/mnd proj/mnd/apps/mnd-graph/vitest-report.json\n",
+      "stdout": "\n> mnd-graph@0.0.0 test\n> vitest run --reporter=default --reporter=json --outputFile.json=vitest-report.json\n\n\n RUN  v4.1.10 D:/mnd proj/mnd/apps/mnd-graph\n\n ✓ src/App.test.tsx (3 tests) 31ms\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  03:30:51\n   Duration  836ms (transform 23ms, setup 0ms, import 167ms, tests 31ms, environment 516ms)\n\nJSON report written to D:/mnd proj/mnd/apps/mnd-graph/vitest-report.json\n",
       "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n"
     },
     {
@@ -210,10 +210,10 @@
       ],
       "cwd": "apps/mnd-graph",
       "exitCode": 0,
-      "durationMs": 4588,
+      "durationMs": 14819,
       "timedOut": false,
-      "stdout": "\n> mnd-graph@0.0.0 e2e\n> playwright test\n\n\nRunning 2 tests using 1 worker\n··\n  2 passed (4.0s)\n",
-      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[WebServer] (node:44976) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n(node:19432) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] 02:35:47 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=c245e6b9:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=c245e6b9:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6652:55)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7618:22)\n[WebServer]     at recursivelyTraversePassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7606:5)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7672:14)\n[WebServer] 02:35:47 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=c245e6b9:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=c245e6b9:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:6652:55)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7701:6)\n[WebServer]     at recursivelyTraverseReconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7688:5)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=c245e6b9:7713:14)\n"
+      "stdout": "\n> mnd-graph@0.0.0 e2e\n> playwright test\n\n\nRunning 3 tests using 1 worker\n···\n  3 passed (14.2s)\n",
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\n[WebServer] (node:29460) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n(node:28680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] 03:30:58 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=5b4285aa:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=5b4285aa:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6652:55)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7618:22)\n[WebServer]     at recursivelyTraversePassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7606:5)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7672:14)\n[WebServer] 03:30:58 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=5b4285aa:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=5b4285aa:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6652:55)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7701:6)\n[WebServer]     at recursivelyTraverseReconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7688:5)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7713:14)\n[WebServer] 03:30:59 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=5b4285aa:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=5b4285aa:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6652:55)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7618:22)\n[WebServer]     at recursivelyTraversePassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7606:5)\n[WebServer]     at commitPassiveMountOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7672:14)\n[WebServer] 03:30:59 [vite] (client) [console.warn] Could not subscribe to vault changes TypeError: window.__TAURI_INTERNALS__.transformCallback is not a function\n[WebServer]     at transformCallback (http://127.0.0.1:5173/node_modules/.vite/deps/core-CvluwfXn.js?v=5b4285aa:94:36)\n[WebServer]     at listen (http://127.0.0.1:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=5b4285aa:76:12)\n[WebServer]     at http://127.0.0.1:5173/src/components/GraphView.tsx:33:3\n[WebServer]     at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:12902:13)\n[WebServer]     at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:851:66)\n[WebServer]     at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6617:153)\n[WebServer]     at commitHookPassiveMountEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:6652:55)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7701:6)\n[WebServer]     at recursivelyTraverseReconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7688:5)\n[WebServer]     at reconnectPassiveEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=5b4285aa:7713:14)\n"
     },
     {
       "id": "cargo-fmt",
@@ -224,7 +224,7 @@
       ],
       "cwd": "apps/mnd-graph/src-tauri",
       "exitCode": 0,
-      "durationMs": 123,
+      "durationMs": 139,
       "timedOut": false,
       "stdout": "",
       "stderr": ""
@@ -237,10 +237,10 @@
       ],
       "cwd": "apps/mnd-graph/src-tauri",
       "exitCode": 0,
-      "durationMs": 356,
+      "durationMs": 400,
       "timedOut": false,
       "stdout": "",
-      "stderr": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.30s\n"
+      "stderr": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.34s\n"
     },
     {
       "id": "cargo-clippy",
@@ -255,10 +255,10 @@
       ],
       "cwd": "apps/mnd-graph/src-tauri",
       "exitCode": 0,
-      "durationMs": 403,
+      "durationMs": 522,
       "timedOut": false,
       "stdout": "",
-      "stderr": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.31s\n"
+      "stderr": "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.40s\n"
     },
     {
       "id": "cargo-test",
@@ -268,10 +268,10 @@
       ],
       "cwd": "apps/mnd-graph/src-tauri",
       "exitCode": 0,
-      "durationMs": 853,
+      "durationMs": 969,
       "timedOut": false,
-      "stdout": "\nrunning 6 tests\ntest index::tests::markdown_metadata_and_wikilinks_are_parsed_without_rewriting_source ... ok\ntest security::tests::path_security_rejects_escape_and_reserved_names ... ok\ntest commands::tests::preview_fingerprint_changes_after_destination_mutation ... ok\ntest security::tests::atomic_write_replaces_and_verifies_content ... ok\ntest commands::tests::destination_classification_uses_real_filesystem_state ... ok\ntest index::tests::sqlite_rebuild_resolves_links_and_records_duplicate_ids ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
-      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.36s\n     Running unittests src\\lib.rs (target\\debug\\deps\\app_lib-fb2cddcb783a6090.exe)\n     Running unittests src\\main.rs (target\\debug\\deps\\app-0f629191f0979e2e.exe)\n   Doc-tests app_lib\n"
+      "stdout": "\nrunning 7 tests\ntest index::tests::markdown_metadata_and_wikilinks_are_parsed_without_rewriting_source ... ok\ntest security::tests::path_security_rejects_escape_and_reserved_names ... ok\ntest commands::tests::preview_fingerprint_changes_after_destination_mutation ... ok\ntest security::tests::atomic_write_replaces_and_verifies_content ... ok\ntest workflow::tests::inventory_counts_media_and_skips_internal_directories ... ok\ntest commands::tests::destination_classification_uses_real_filesystem_state ... ok\ntest index::tests::sqlite_rebuild_resolves_links_and_records_duplicate_ids ... ok\n\ntest result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s\n     Running unittests src\\lib.rs (target\\debug\\deps\\app_lib-fb2cddcb783a6090.exe)\n     Running unittests src\\main.rs (target\\debug\\deps\\app-0f629191f0979e2e.exe)\n   Doc-tests app_lib\n"
     },
     {
       "id": "source-audit",
@@ -281,9 +281,9 @@
       ],
       "cwd": "apps/mnd-graph",
       "exitCode": 0,
-      "durationMs": 54,
+      "durationMs": 59,
       "timedOut": false,
-      "stdout": "{\n  \"status\": \"PASS\",\n  \"checkedAt\": \"2026-07-18T23:35:49.298Z\",\n  \"filesChecked\": 25,\n  \"findingCount\": 0,\n  \"findings\": []\n}\n",
+      "stdout": "{\n  \"status\": \"PASS\",\n  \"checkedAt\": \"2026-07-19T00:31:09.607Z\",\n  \"filesChecked\": 27,\n  \"findingCount\": 0,\n  \"findings\": []\n}\n",
       "stderr": ""
     },
     {
@@ -294,9 +294,9 @@
       ],
       "cwd": "apps/mnd-graph",
       "exitCode": 0,
-      "durationMs": 89,
+      "durationMs": 111,
       "timedOut": false,
-      "stdout": "{\n  \"status\": \"PASS\",\n  \"generatedAt\": \"2026-07-18T23:35:49.387Z\",\n  \"runtime\": {\n    \"node\": \"v24.14.0\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\"\n  },\n  \"scope\": \"Graphology construction, traversal, search, and filter hot paths\",\n  \"results\": [\n    {\n      \"name\": \"Graphology construction (100 nodes)\",\n      \"thresholdMs\": 500,\n      \"durationMs\": 0.995,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 100,\n        \"edges\": 99\n      }\n    },\n    {\n      \"name\": \"Graphology construction (1000 nodes)\",\n      \"thresholdMs\": 2000,\n      \"durationMs\": 3.707,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 1000,\n        \"edges\": 999\n      }\n    },\n    {\n      \"name\": \"Graphology construction (10000 nodes)\",\n      \"thresholdMs\": 15000,\n      \"durationMs\": 25.261,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 10000,\n        \"edges\": 9999\n      }\n    },\n    {\n      \"name\": \"Graph traversal (10,000 nodes)\",\n      \"thresholdMs\": 1000,\n      \"durationMs\": 0.877,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"checksum\": 267780\n      }\n    },\n    {\n      \"name\": \"Case-insensitive search (10,000 nodes)\",\n      \"thresholdMs\": 100,\n      \"durationMs\": 2.819,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"matches\": 111\n      }\n    },\n    {\n      \"name\": \"Type/tag filter (10,000 nodes)\",\n      \"thresholdMs\": 250,\n      \"durationMs\": 0.56,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"matches\": 2857\n      }\n    }\n  ]\n}\n",
+      "stdout": "{\n  \"status\": \"PASS\",\n  \"generatedAt\": \"2026-07-19T00:31:09.719Z\",\n  \"runtime\": {\n    \"node\": \"v24.14.0\",\n    \"platform\": \"win32\",\n    \"arch\": \"x64\"\n  },\n  \"scope\": \"Graphology construction, traversal, search, and filter hot paths\",\n  \"results\": [\n    {\n      \"name\": \"Graphology construction (100 nodes)\",\n      \"thresholdMs\": 500,\n      \"durationMs\": 0.997,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 100,\n        \"edges\": 99\n      }\n    },\n    {\n      \"name\": \"Graphology construction (1000 nodes)\",\n      \"thresholdMs\": 2000,\n      \"durationMs\": 4.555,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 1000,\n        \"edges\": 999\n      }\n    },\n    {\n      \"name\": \"Graphology construction (10000 nodes)\",\n      \"thresholdMs\": 15000,\n      \"durationMs\": 33.528,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"nodes\": 10000,\n        \"edges\": 9999\n      }\n    },\n    {\n      \"name\": \"Graph traversal (10,000 nodes)\",\n      \"thresholdMs\": 1000,\n      \"durationMs\": 1.338,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"checksum\": 267780\n      }\n    },\n    {\n      \"name\": \"Case-insensitive search (10,000 nodes)\",\n      \"thresholdMs\": 100,\n      \"durationMs\": 3.501,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"matches\": 111\n      }\n    },\n    {\n      \"name\": \"Type/tag filter (10,000 nodes)\",\n      \"thresholdMs\": 250,\n      \"durationMs\": 0.727,\n      \"status\": \"PASS\",\n      \"evidence\": {\n        \"matches\": 2857\n      }\n    }\n  ]\n}\n",
       "stderr": ""
     },
     {
@@ -311,10 +311,10 @@
       ],
       "cwd": ".",
       "exitCode": 0,
-      "durationMs": 3523,
+      "durationMs": 3915,
       "timedOut": false,
       "stdout": "\n> mnd@0.1.0 pretest\n> npm run build\n\n\n> mnd@0.1.0 build\n> tsc\n\n\n> mnd@0.1.0 test\n> node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --testPathPattern=graph-discovery.test\n\n",
-      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\nPASS src/commands/graph-discovery.test.ts\n  graph discovery\n    √ prefers packaged path over dev path (1 ms)\n    √ dev path used only in dev mode\n    √ returns executable_not_found when all paths absent\n\nTest Suites: 1 passed, 1 total\nTests:       3 passed, 3 total\nSnapshots:   0 total\nTime:        0.37 s, estimated 1 s\nRan all test suites matching /graph-discovery.test/i.\n"
+      "stderr": "npm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown env config \"only-built-dependencies\". This will stop working in the next major version of npm.\nnpm warn Unknown project config \"only-built-dependencies\". This will stop working in the next major version of npm.\nPASS src/commands/graph-discovery.test.ts\n  graph discovery\n    √ prefers packaged path over dev path (2 ms)\n    √ dev path used only in dev mode\n    √ returns executable_not_found when all paths absent (1 ms)\n\nTest Suites: 1 passed, 1 total\nTests:       3 passed, 3 total\nSnapshots:   0 total\nTime:        0.524 s, estimated 1 s\nRan all test suites matching /graph-discovery.test/i.\n"
     }
   ]
 }
