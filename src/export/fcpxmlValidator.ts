@@ -141,8 +141,15 @@ export async function validateFcpxmlFile(fcpxmlPath: string): Promise<Validation
     if (!asset.path || !existsSync(asset.path)) continue;
     try {
       const probe = await probeMedia(asset.path);
-      if (probe.durationSeconds > 0 && asset.duration > probe.durationSeconds + 1) {
+      // Skip the check when ffprobe returns a suspiciously small duration
+      // (< 0.5s) for an asset declared longer than 1s. This happens with
+      // certain MP4 containers (e.g. no faststart, HEVC) where ffprobe reads
+      // only the first keyframe. The asset existence is already verified above.
+      const probeReliable = probe.durationSeconds >= 0.5 || asset.duration <= 1;
+      if (probeReliable && probe.durationSeconds > 0 && asset.duration > probe.durationSeconds + 1) {
         report.errors.push(`Asset ${id} duration ${asset.duration}s exceeds media duration ${probe.durationSeconds}s`);
+      } else if (!probeReliable && probe.durationSeconds > 0) {
+        report.warnings.push(`Asset ${id}: ffprobe returned ${probe.durationSeconds}s (possibly unreliable for this container); skipping duration check`);
       }
     } catch (error) {
       // Probe failures (e.g. cancelled signal, permission) are non-fatal;
