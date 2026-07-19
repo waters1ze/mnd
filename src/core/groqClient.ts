@@ -1,6 +1,6 @@
 // src/core/groqClient.ts
 import chalk from "chalk";
-import { loadConfig, getActiveProfile } from "./config.js";
+import { loadConfig, getActiveProfile, saveConfig } from "./config.js";
 import { getSecretsStore } from "./secrets.js";
 import { withLog } from "./runLog.js";
 import { createReadStream } from "node:fs";
@@ -12,7 +12,17 @@ const GROQ_BASE = "https://api.groq.com/openai/v1";
 async function getApiKey(): Promise<string> {
   const cfg = await loadConfig();
   const secrets = await getSecretsStore();
-  const key = await secrets.get(cfg.connections.groq_api_key_ref);
+  const reference = cfg.connections.groq_api_key_ref;
+  let key = await secrets.get(reference);
+  // Older config screens allowed a Groq key to be entered into the reference
+  // field. Repair that safely on first use instead of treating it as missing.
+  if (!key && /^gsk_[A-Za-z0-9_-]{20,}$/.test(reference)) {
+    await secrets.set("groq_api_key", reference);
+    cfg.connections.groq_api_key_ref = "groq_api_key";
+    await saveConfig(cfg);
+    key = reference;
+  }
+  if (!key) throw new Error("Groq API key is not available in secure storage. Open config and set the key again.");
   if (!key) {
     throw new Error(
       `Groq API key not set. Run \`config\` → Connections → Set API key (ref: ${cfg.connections.groq_api_key_ref})`
