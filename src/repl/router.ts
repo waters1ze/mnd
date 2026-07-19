@@ -89,6 +89,7 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
   { name: "restore", slash: "/restore", icon: "⏪", description: "Restore config or project", acceptsArgs: true, sensitive: true },
   { name: "logs", slash: "/logs", icon: "🖹", description: "View system or project logs", acceptsArgs: true },
   { name: "doctor", slash: "/doctor", icon: "🩺", description: "Run diagnostics", acceptsArgs: true },
+  { name: "skills", slash: "/skills", icon: "✦", description: "List installed MND skills", acceptsArgs: true },
   { name: "export validate", slash: "/export validate", icon: "✔", description: "Validate the timeline FCPXML", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidExport, !ctx.project?.hasValidExport ? "No export exists" : undefined) },
   { name: "export reveal", slash: "/export reveal", icon: "📂", description: "Reveal the exported FCPXML file", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidExport, !ctx.project?.hasValidExport ? "No export exists" : undefined) },
   { name: "export retry", slash: "/export retry", icon: "🔁", description: "Regenerate FCPXML from last plan", acceptsArgs: false, availability: ctx => avail(!!ctx.project?.hasValidPlan, !ctx.project?.hasValidPlan ? "No completed valid plan" : undefined) },

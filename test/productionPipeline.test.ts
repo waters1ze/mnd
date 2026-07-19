@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { XMLValidator } from "fast-xml-parser";
 import { buildAutomaticEditPlan } from "../src/pipeline/automaticEditor.js";
 import { preservePromptedImageOverlays } from "../src/pipeline/aiEditPlan.js";
+import { buildEffectFfmpegArgs } from "../src/pipeline/effectMaterializer.js";
 import { validateEditPlan } from "../src/pipeline/editPlanValidator.js";
 import { compileTimeline } from "../src/pipeline/timelineCompiler.js";
 import { generateFcpxml, generateSrt } from "../src/export/fcpxmlExporter.js";
@@ -227,5 +228,54 @@ describe("production editing pipeline", () => {
     const movedOverlay = preserved.tracks.find((track) => track.kind === "images")!.clips[0]!;
     expect(movedOverlay.timelineStart).toBe(12);
     expect(movedOverlay.transform).toEqual(imageTrack!.clips[0]!.transform);
+  });
+
+  test("adds handle-safe transitions and prompt-directed video/audio effects", () => {
+    const analysis: SourceAnalysis = {
+      schemaVersion: 1,
+      sourceId: source.id,
+      sourceHash: source.sha256,
+      parametersHash: "effects",
+      scenes: [
+        { id: "scene-a", sourceId: source.id, sourceStart: 0, sourceEnd: 5, description: "First take", transcriptReferences: [], visualQuality: 1, audioQuality: 1, tags: [], people: [], objects: [], suggestedRole: "primary", keepScore: 1, rejectScore: 0, diagnostics: [] },
+        { id: "scene-b", sourceId: source.id, sourceStart: 7, sourceEnd: 12, description: "Abrupt second take", transcriptReferences: [], visualQuality: 1, audioQuality: 1, tags: [], people: [], objects: [], suggestedRole: "primary", keepScore: 1, rejectScore: 0, diagnostics: [] },
+      ],
+      diagnostics: [],
+      highlights: [],
+      brollOpportunities: [],
+      generatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const plan = buildAutomaticEditPlan(manifest.projectId, manifest, [analysis], [], {
+      profile: "talking_head",
+      timelineName: "Prompt effects",
+      keepInstructions: ["Сделай плавный переход при резкой смене кадра, всё видео чб, сделай голос ниже и громче на +4 дБ, убери шум и нормализуй громкость"],
+    });
+    const clips = plan.tracks.find((track) => track.kind === "primary_video")!.clips;
+    expect(clips[1]!.transitionIn).toEqual({ type: "cross_dissolve", durationSeconds: 0.3 });
+    expect(clips[0]!.effect).toBe("monochrome");
+    expect(clips[0]!.audio).toMatchObject({
+      gainDb: 4,
+      eqMode: "bass_boost",
+      noiseReductionAmount: 35,
+      loudness: { amount: 6, uniformity: 0.5 },
+      pitchSemitones: -2,
+    });
+    expect(validateEditPlan(plan, manifest, projectRoot).valid).toBe(true);
+
+    const args = buildEffectFfmpegArgs(clips[0]!, source, join(projectRoot, "rendered.mp4"));
+    expect(args).toEqual(expect.arrayContaining(["-vf", "hue=s=0"]));
+    expect(args[args.indexOf("-af") + 1]).toContain("asetrate=");
+
+    const nativePlan = structuredClone(plan);
+    for (const clip of nativePlan.tracks[0]!.clips) {
+      delete clip.effect;
+      delete clip.audio.pitchSemitones;
+    }
+    const xml = generateFcpxml(compileTimeline(nativePlan, manifest, projectRoot), manifest);
+    expect(xml).toContain('<transition name="Cross Dissolve"');
+    expect(xml).toContain('<adjust-EQ mode="bass_boost"/>');
+    expect(xml).toContain('<adjust-noiseReduction amount="35"/>');
+    expect(xml).toContain('<adjust-loudness amount="6" uniformity="0.5"/>');
+    expect(xml).toContain('<adjust-volume amount="4dB">');
   });
 });

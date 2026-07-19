@@ -19,6 +19,12 @@ export interface SkillFrontmatter {
   type: "prompt" | "code" | "hybrid";
   code_ref?: string;
   used_in_styles: string[];
+  source?: "user" | "antigravity" | "built_in";
+  status?: "active" | "instruction_only";
+  capabilities?: string[];
+  triggers?: string[];
+  created?: string;
+  updated?: string;
 }
 
 export interface ProjectFrontmatter {

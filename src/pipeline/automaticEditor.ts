@@ -50,6 +50,14 @@ const IMAGE_REQUEST = /\b(image|picture|photo|screenshot|logo|overlay)\b|\.(?:pn
 const HAND_PLACEMENT = /between\s+(?:my\s+)?hands|между\s+(?:моих\s+)?рук|между\s+ладон/i;
 const DOWN_PLACEMENT = /point(?:ed|ing)?\s+down|show(?:ed|ing)?\s+down|показал\w*\s+вниз|указал\w*\s+вниз|снизу|ниже/i;
 const FULLSCREEN_PLACEMENT = /full[ -]?screen|на\s+весь\s+экран|полноэкран/i;
+const MONOCHROME_EFFECT = /black\s*(?:and|&)\s*white|monochrome|grayscale|ч[её]рно[ -]?бел|ч\/?б|чбшн/i;
+const NO_TRANSITIONS = /no\s+transitions?|without\s+transitions?|без\s+переход|не\s+добавляй\s+переход/i;
+const EXPLICIT_SMOOTH_TRANSITIONS = /smooth\s+transitions?|soft\s+cuts?|плавн[а-яё]*\s+переход|мягк[а-яё]*\s+склей|сглад[а-яё]*\s+(?:переход|склей)|резк[а-яё]*\s+смен/i;
+const VOICE_ENHANCE = /voice\s+enhance|enhance\s+(?:the\s+)?voice|улучш[а-яё]*\s+голос|обработ[а-яё]*\s+голос|чист[а-яё]*\s+голос/i;
+const VOICE_DEEPER = /deeper\s+voice|lower\s+(?:the\s+)?voice|голос[а-яё]*\s+(?:ниже|глубже)|низк[а-яё]*\s+голос/i;
+const VOICE_BRIGHTER = /brighter\s+voice|higher\s+(?:the\s+)?voice|голос[а-яё]*\s+(?:выше|ярче)|высок[а-яё]*\s+голос/i;
+const NOISE_REDUCTION = /noise\s+reduction|remove\s+(?:the\s+)?noise|убер[а-яё]*\s+(?:шум|шипен)|подав[а-яё]*\s+шум|шумоподав/i;
+const NORMALIZE_LOUDNESS = /normalize\s+(?:the\s+)?(?:voice|audio|loudness)|нормализ[а-яё]*\s+(?:голос|звук|громкост)|выровн[а-яё]*\s+громкост/i;
 const STOP_WORDS = new Set(["this", "that", "with", "when", "then", "into", "from", "have", "will", "чтобы", "когда", "потом", "между", "моих", "этот", "эту", "картинку", "изображение", "вставь", "поставь", "добавь"]);
 
 function normalizedWords(value: string): string[] {
@@ -103,6 +111,87 @@ function imageTransformForInstruction(instruction: string): EditClipV1["transfor
   if (/left|слева/i.test(instruction)) return { scale: 0.38, positionX: -420, positionY: 0, rotation: 0, opacity: 1 };
   if (/right|справа/i.test(instruction)) return { scale: 0.38, positionX: 420, positionY: 0, rotation: 0, opacity: 1 };
   return { scale: 0.42, positionX: 0, positionY: 0, rotation: 0, opacity: 1 };
+}
+
+function explicitGainDb(instruction: string): number | undefined {
+  const match = /([+-]?\d+(?:[.,]\d+)?)\s*(?:db|дб)(?=\s|$|[,.!?;:])/i.exec(instruction);
+  if (match?.[1]) return Math.max(-24, Math.min(12, Number(match[1].replace(",", "."))));
+  if (/louder|increase\s+(?:the\s+)?volume|громче|увелич[а-яё]*\s+громкост/i.test(instruction)) return 3;
+  if (/quieter|lower\s+(?:the\s+)?volume|тише|уменьш[а-яё]*\s+громкост/i.test(instruction)) return -3;
+  return undefined;
+}
+
+function explicitPitchSemitones(instruction: string): number | undefined {
+  const match = /([+-]?\d+(?:[.,]\d+)?)\s*(?:semitones?|полутон[а-яё]*)/i.exec(instruction);
+  if (match?.[1]) return Math.max(-4, Math.min(4, Number(match[1].replace(",", "."))));
+  if (VOICE_DEEPER.test(instruction)) return -2;
+  if (VOICE_BRIGHTER.test(instruction)) return 2;
+  return undefined;
+}
+
+function targetedPrimaryClips(instruction: string, transcripts: TranscriptV1[], primaryClips: EditClipV1[]): EditClipV1[] {
+  const quoted = [...instruction.matchAll(/[«“"]([^»”"]{3,})[»”"]/g)].map((match) => match[1]!).join(" ");
+  if (!quoted || !/(?:when|while|at\s+the\s+words?|когда|на\s+фраз)/i.test(instruction)) return primaryClips;
+  const anchor = findTranscriptAnchor(quoted, transcripts);
+  if (!anchor) return primaryClips;
+  const selected = primaryClips.filter((clip) =>
+    clip.sourceId === anchor.sourceId && anchor.start < clip.sourceEnd && anchor.end > clip.sourceStart,
+  );
+  return selected.length > 0 ? selected : primaryClips;
+}
+
+function applyPromptAudioAndVideoEffects(instruction: string, transcripts: TranscriptV1[], primaryClips: EditClipV1[]): string[] {
+  if (!instruction) return [];
+  const targets = targetedPrimaryClips(instruction, transcripts, primaryClips);
+  const gainDb = explicitGainDb(instruction);
+  const pitchSemitones = explicitPitchSemitones(instruction);
+  const notes: string[] = [];
+  for (const clip of targets) {
+    if (MONOCHROME_EFFECT.test(instruction)) clip.effect = "monochrome";
+    if (!clip.audio.enabled) continue;
+    if (gainDb !== undefined) clip.audio.gainDb = gainDb;
+    if (VOICE_ENHANCE.test(instruction)) clip.audio.eqMode = "voice_enhance";
+    if (VOICE_DEEPER.test(instruction)) clip.audio.eqMode = "bass_boost";
+    if (VOICE_BRIGHTER.test(instruction)) clip.audio.eqMode = "treble_boost";
+    if (NOISE_REDUCTION.test(instruction)) clip.audio.noiseReductionAmount = 35;
+    if (NORMALIZE_LOUDNESS.test(instruction)) clip.audio.loudness = { amount: 6, uniformity: 0.5 };
+    if (pitchSemitones !== undefined) clip.audio.pitchSemitones = pitchSemitones;
+  }
+  if (MONOCHROME_EFFECT.test(instruction)) notes.push(`Applied monochrome to ${targets.length} prompt-targeted clip(s)`);
+  if (gainDb !== undefined) notes.push(`Set prompt-targeted voice gain to ${gainDb >= 0 ? "+" : ""}${gainDb} dB`);
+  if (VOICE_ENHANCE.test(instruction) || VOICE_DEEPER.test(instruction) || VOICE_BRIGHTER.test(instruction)) notes.push("Applied prompt-directed voice EQ");
+  if (pitchSemitones !== undefined) notes.push(`Applied prompt-directed pitch shift of ${pitchSemitones} semitone(s)`);
+  if (NOISE_REDUCTION.test(instruction)) notes.push("Applied 35% dialogue noise reduction");
+  if (NORMALIZE_LOUDNESS.test(instruction)) notes.push("Applied dialogue loudness normalization");
+  return notes;
+}
+
+function applySmartTransitions(
+  instruction: string,
+  primaryClips: EditClipV1[],
+  pacing: AutomaticEditOptions["pacing"],
+  sources: Map<string, SourceRecord>,
+): string[] {
+  if (NO_TRANSITIONS.test(instruction)) return ["Prompt disabled automatic transitions"];
+  const explicit = EXPLICIT_SMOOTH_TRANSITIONS.test(instruction);
+  let count = 0;
+  for (let index = 1; index < primaryClips.length; index += 1) {
+    const previous = primaryClips[index - 1]!;
+    const current = primaryClips[index]!;
+    const sameContinuousTake = previous.sourceId === current.sourceId && Math.abs(current.sourceStart - previous.sourceEnd) <= 0.18;
+    const abrupt = !sameContinuousTake;
+    if (!abrupt && !explicit) continue;
+    const previousHandle = Math.max(0, (sources.get(previous.sourceId)?.durationSeconds ?? previous.sourceEnd) - previous.sourceEnd);
+    const currentHandle = Math.max(0, current.sourceStart);
+    const desired = pacing === "fast" ? 0.12 : pacing === "slow" ? 0.4 : explicit ? 0.3 : 0.2;
+    const duration = Math.min(desired, currentHandle, previousHandle);
+    if (!Number.isFinite(duration) || duration < 0.08) continue;
+    current.transitionIn = { type: "cross_dissolve", durationSeconds: duration };
+    count += 1;
+  }
+  return [count > 0
+    ? `Inserted ${count} handle-safe cross dissolve transition(s) at abrupt cuts`
+    : "No abrupt cut had enough media handles for a safe transition"];
 }
 
 function id(prefix: string, ...parts: Array<string | number>): string {
@@ -244,7 +333,6 @@ function makeClip(
   duckUnderVoice = false,
 ): EditClipV1 {
   const duration = end - start;
-  const transitionDuration = Math.min(0.2, start, Math.max(0, source.durationSeconds - end));
   return {
     id: id("clip", source.id, start.toFixed(6), end.toFixed(6), trackId, timelineStart.toFixed(6)),
     sourceId: source.id,
@@ -258,8 +346,8 @@ function makeClip(
     speed: 1,
     transform: defaultTransform(),
     audio: defaultAudio(audioEnabled, duration, audioGain, duckUnderVoice),
-    transitionIn: transitionDuration >= 0.08 ? { type: "cross_dissolve", durationSeconds: transitionDuration } : null,
-    transitionOut: transitionDuration >= 0.08 ? { type: "cross_dissolve", durationSeconds: transitionDuration } : null,
+    transitionIn: null,
+    transitionOut: null,
   };
 }
 
@@ -318,6 +406,8 @@ export function buildAutomaticEditPlan(
     timelineCursor = clip.timelineEnd;
     return clip;
   });
+  const promptEffectRationale = applyPromptAudioAndVideoEffects(instruction, transcripts, primaryClips);
+  const transitionRationale = applySmartTransitions(instruction, primaryClips, options.pacing, new Map(manifest.entries.map((source) => [source.id, source])));
   const tracks: EditTrackV1[] = [{ id: primaryTrackId, kind: "primary_video", name: "Primary Video", exclusive: true, clips: primaryClips }];
 
   const frequencySeconds = options.brollFrequency === "high" ? 8 : options.brollFrequency === "medium" ? 14 : options.brollFrequency === "low" ? 24 : Number.POSITIVE_INFINITY;
@@ -397,6 +487,8 @@ export function buildAutomaticEditPlan(
     tracks.some((track) => track.kind === "images")
       ? `Placed the requested image near transcript cue "${transcriptAnchor?.text ?? "fallback timeline position"}" with prompt-directed transform`
       : "No prompt-directed image overlay was requested",
+    ...transitionRationale,
+    ...promptEffectRationale,
   ];
 
   return {

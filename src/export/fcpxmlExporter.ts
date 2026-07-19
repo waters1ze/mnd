@@ -83,6 +83,17 @@ function clipAdjustments(clip: CompiledClip, timeline: CompiledTimelineV1): stri
     lines.push(`<timept time="${frameTime(clip.timelineDurationFrames, timeline)}" value="${frameTime(clip.sourceStartFrames + clip.sourceDurationFrames, timeline)}" interp="linear"/>`);
     lines.push("</timeMap>");
   }
+  if (clip.audio.enabled) {
+    if (clip.audio.loudness) {
+      lines.push(`<adjust-loudness amount="${xml(clip.audio.loudness.amount)}" uniformity="${xml(clip.audio.loudness.uniformity)}"/>`);
+    }
+    if (clip.audio.noiseReductionAmount !== undefined && clip.audio.noiseReductionAmount > 0) {
+      lines.push(`<adjust-noiseReduction amount="${xml(clip.audio.noiseReductionAmount)}"/>`);
+    }
+    if (clip.audio.eqMode && clip.audio.eqMode !== "flat") {
+      lines.push(`<adjust-EQ mode="${xml(clip.audio.eqMode)}"/>`);
+    }
+  }
   const transform = clip.transform;
   if (transform.scale !== 1 || transform.positionX !== 0 || transform.positionY !== 0 || transform.rotation !== 0) {
     lines.push(`<adjust-transform position="${xml(`${transform.positionX} ${transform.positionY}`)}" scale="${xml(`${transform.scale} ${transform.scale}`)}" rotation="${xml(transform.rotation)}"/>`);
@@ -311,18 +322,25 @@ export async function exportResolveBundle(
   await safeWrite(paths.subtitlesSrt, generateSrt(plan.subtitles), replace, paths.backupsDir);
   files.push(paths.subtitlesSrt);
   const artifacts: Array<[string, string]> = [
-    [paths.sourceManifestJson, join(paths.exportBundleDir, "source-manifest.json")],
     [paths.transcriptJson, join(paths.exportBundleDir, "transcript.json")],
     [paths.scenesJson, join(paths.exportBundleDir, "scenes.json")],
-    [paths.editPlanJson, join(paths.exportBundleDir, "edit-plan.json")],
     [paths.compiledTimelineJson, join(paths.exportBundleDir, "compiled-timeline.json")],
   ];
+  await safeWrite(join(paths.exportBundleDir, "source-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, replace, paths.backupsDir);
+  files.push(join(paths.exportBundleDir, "source-manifest.json"));
+  await safeWrite(join(paths.exportBundleDir, "edit-plan.json"), `${JSON.stringify(plan, null, 2)}\n`, replace, paths.backupsDir);
+  files.push(join(paths.exportBundleDir, "edit-plan.json"));
   for (const [source, destination] of artifacts) {
     if (await copyArtifactIfPresent(source, destination, replace, paths.backupsDir)) files.push(destination);
   }
   await safeWrite(paths.validationReportJson, `${JSON.stringify(validation, null, 2)}\n`, replace, paths.backupsDir);
   files.push(paths.validationReportJson);
   files.push(...await copyReferencedAssets(plan, paths, replace));
+  const effectsRoot = resolve(paths.exportBundleDir, "Assets", "effects");
+  for (const source of manifest.entries) {
+    const canonical = resolve(source.canonicalPath);
+    if (canonical === effectsRoot || canonical.startsWith(`${effectsRoot}${process.platform === "win32" ? "\\" : "/"}`)) files.push(source.canonicalPath);
+  }
 
   const readme = [
     "MND Resolve Import", "", "1. Open DaVinci Resolve and create or open a project.",

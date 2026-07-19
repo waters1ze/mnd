@@ -10,6 +10,8 @@ import { theme } from "../ui/theme.js";
 import { startThinking, stopThinking } from "../ui/thinkingIndicator.js";
 import type { CommandHandler } from "../repl/router.js";
 import type { EditPlan } from "../types/pipeline.js";
+import { existsSync } from "node:fs";
+import { resolvePromptCapabilities } from "../pipeline/capabilityOrchestrator.js";
 
 export const handlePrompt: CommandHandler = async (args) => {
   const text = args.join(" ").trim();
@@ -25,6 +27,23 @@ export const handlePrompt: CommandHandler = async (args) => {
   if (!slug) {
     console.log(chalk.yellow("No project open. Use `open` or `create` first."));
     return;
+  }
+
+  const productionPaths = getProjectPaths(vaultPath, slug);
+  if (existsSync(productionPaths.sourceManifestJson) && existsSync(productionPaths.scenesJson)) {
+    const { handleEdit } = await import("./productionPipeline.js");
+    await handleEdit(["plan", "--project", slug, "--instruction", text], `edit plan --project ${slug} --instruction ${JSON.stringify(text)}`);
+    console.log(chalk.gray("  Production edit plan updated. Use /edit build and /export resolve, or run /auto for the full cycle."));
+    return;
+  }
+
+  const capabilityResolution = await resolvePromptCapabilities(text, vaultPath, {
+    ...(cfg.models[cfg.profile].text.provider === "antigravity" && cfg.models[cfg.profile].text.model
+      ? { antigravityModel: cfg.models[cfg.profile].text.model }
+      : {}),
+  });
+  if (capabilityResolution.skill?.created) {
+    console.log(chalk.hex(theme.accent)(`✓ Скилл: ${capabilityResolution.skill.name} успешно создан (${capabilityResolution.skill.status})`));
   }
 
   const state = await loadProjectState(vaultPath, slug);

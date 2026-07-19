@@ -16,8 +16,9 @@ const TRACK_KINDS = new Set<TrackKind>([
   "primary_video", "broll", "images", "overlays", "titles", "voice", "music",
   "sound_effects", "subtitles",
 ]);
-const EFFECTS = new Set(["transform", "opacity", "crop", "gain", "ducking"]);
-const TRANSITIONS = new Set(["cross_dissolve", "fade_to_color", "audio_crossfade"]);
+const EFFECTS = new Set(["monochrome"]);
+const TRANSITIONS = new Set(["cross_dissolve"]);
+const EQ_MODES = new Set(["flat", "voice_enhance", "music_enhance", "loudness", "hum_reduction", "bass_boost", "bass_reduce", "treble_boost", "treble_reduce"]);
 const EDIT_PROFILES = new Set(["vlog", "talking_head", "tutorial", "interview", "short_vertical", "documentary", "cinematic", "custom"]);
 const EXCLUSIVE_TRACK_KINDS = new Set<TrackKind>(["primary_video", "broll", "images", "voice", "music"]);
 
@@ -122,6 +123,25 @@ function validateClip(
   }
   if (typeof audio?.enabled !== "boolean" || typeof audio?.duckUnderVoice !== "boolean") {
     add(issues, "INVALID_AUDIO", `${path}.audio`, "Audio enabled and duckUnderVoice must be booleans");
+  }
+  if (audio?.eqMode !== undefined && !EQ_MODES.has(audio.eqMode)) {
+    add(issues, "INVALID_AUDIO_EQ", `${path}.audio.eqMode`, `Unsupported EQ mode ${audio.eqMode}`);
+  }
+  if (audio?.noiseReductionAmount !== undefined && (!finite(audio.noiseReductionAmount) || audio.noiseReductionAmount < 0 || audio.noiseReductionAmount > 100)) {
+    add(issues, "INVALID_NOISE_REDUCTION", `${path}.audio.noiseReductionAmount`, "Noise reduction must be between 0 and 100");
+  }
+  if (audio?.loudness !== undefined && (
+    !finite(audio.loudness.amount)
+    || !finite(audio.loudness.uniformity)
+    || audio.loudness.amount < 0
+    || audio.loudness.amount > 100
+    || audio.loudness.uniformity < 0
+    || audio.loudness.uniformity > 1
+  )) {
+    add(issues, "INVALID_LOUDNESS", `${path}.audio.loudness`, "Loudness amount must be 0-100 and uniformity 0-1");
+  }
+  if (audio?.pitchSemitones !== undefined && (!finite(audio.pitchSemitones) || audio.pitchSemitones < -4 || audio.pitchSemitones > 4)) {
+    add(issues, "INVALID_PITCH", `${path}.audio.pitchSemitones`, "Pitch adjustment must be between -4 and +4 semitones");
   }
 
   for (const [side, transition] of [["transitionIn", clip.transitionIn], ["transitionOut", clip.transitionOut]] as const) {

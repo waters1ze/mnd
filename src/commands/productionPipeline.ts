@@ -25,10 +25,12 @@ import { refineEditPlanWithAi } from "../pipeline/aiEditPlan.js";
 import { generatePublishPackage } from "../pipeline/publishPackage.js";
 import { validateEditPlan } from "../pipeline/editPlanValidator.js";
 import { compileTimeline } from "../pipeline/timelineCompiler.js";
+import { materializeEditPlanEffects } from "../pipeline/effectMaterializer.js";
 import { exportResolveBundle } from "../export/fcpxmlExporter.js";
 import { validateFcpxmlFile } from "../export/fcpxmlValidator.js";
-import { createProject, listRules, slugify } from "../core/vault.js";
+import { createProject, listRules, listSkills, slugify } from "../core/vault.js";
 import { listAntigravityModels } from "../core/antigravityClient.js";
+import { resolvePromptCapabilities } from "../pipeline/capabilityOrchestrator.js";
 import type {
   EditPlanV1,
   EditProfile,
@@ -360,11 +362,21 @@ async function createPlan(args: string[]): Promise<{ plan: EditPlanV1; validatio
   }
   const requestedModel = flagValue(args, "--model");
   const rules = await listRules(ctx.vaultPath);
+  if (instruction && !deterministic) {
+    const resolution = await resolvePromptCapabilities(instruction, ctx.vaultPath, { ...(requestedModel ? { antigravityModel: requestedModel } : {}) });
+    if (resolution.skill?.created) {
+      console.log(`Скилл: ${resolution.skill.name} успешно создан (${resolution.skill.status}).`);
+    }
+  }
+  const skills = await listSkills(ctx.vaultPath);
   const plan = deterministic
     ? baseline
     : await refineEditPlanWithAi(baseline, manifest, analyses, transcripts, ctx.paths.root, {
         instructions: instruction ? [instruction] : [],
-        styleRules: rules.map((rule) => rule.body),
+        styleRules: [
+          ...rules.map((rule) => rule.body),
+          ...skills.map((skill) => `MND SKILL ${skill.frontmatter.id} (${skill.frontmatter.status ?? "legacy"}):\n${skill.body}`),
+        ],
         provider: providerValue,
         ...(requestedModel ? { model: requestedModel } : {}),
       });
@@ -413,13 +425,16 @@ async function exportResolve(replace: boolean, slugArg?: string): Promise<{ repo
   const manifest = await loadSourceManifest(ctx.paths.sourceManifestJson);
   for (const source of manifest.entries) await verifySourceRecord(ctx.paths.root, source);
   const plan = await loadPlan(ctx.paths);
-  const planValidation = validateEditPlan(plan, manifest, ctx.paths.root);
-  if (!planValidation.valid) throw new Error(`Edit plan is invalid: ${planValidation.issues.map((issue) => issue.message).join("; ")}`);
-  const timeline = compileTimeline(plan, manifest, ctx.paths.root);
+  const requestedValidation = validateEditPlan(plan, manifest, ctx.paths.root);
+  if (!requestedValidation.valid) throw new Error(`Edit plan is invalid: ${requestedValidation.issues.map((issue) => issue.message).join("; ")}`);
+  const materialized = await materializeEditPlanEffects(plan, manifest, ctx.paths);
+  const planValidation = validateEditPlan(materialized.plan, materialized.manifest, ctx.paths.root);
+  if (!planValidation.valid) throw new Error(`Materialized edit plan is invalid: ${planValidation.issues.map((issue) => issue.message).join("; ")}`);
+  const timeline = compileTimeline(materialized.plan, materialized.manifest, ctx.paths.root);
   await atomicWriteFile(ctx.paths.compiledTimelineJson, `${JSON.stringify(timeline, null, 2)}\n`);
-  const report = await exportResolveBundle(ctx.paths, manifest, plan, timeline, planValidation, { replace });
+  const report = await exportResolveBundle(ctx.paths, materialized.manifest, materialized.plan, timeline, planValidation, { replace });
   const fcpxmlValidation = await validateFcpxmlFile(ctx.paths.timelineFcpxml);
-  const validation = { valid: planValidation.valid && fcpxmlValidation.valid, checkedAt: new Date().toISOString(), editPlan: planValidation, fcpxml: fcpxmlValidation };
+  const validation = { valid: requestedValidation.valid && planValidation.valid && fcpxmlValidation.valid, checkedAt: new Date().toISOString(), requestedEditPlan: requestedValidation, materializedEditPlan: planValidation, fcpxml: fcpxmlValidation };
   await atomicWriteFile(ctx.paths.validationReportJson, `${JSON.stringify(validation, null, 2)}\n`);
   if (!fcpxmlValidation.valid) throw new Error(`Generated FCPXML failed validation: ${fcpxmlValidation.errors.join("; ")}`);
   return { report, validation };

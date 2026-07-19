@@ -168,10 +168,14 @@ export interface EditAudio {
   fadeInSeconds: number;
   fadeOutSeconds: number;
   duckUnderVoice: boolean;
+  eqMode?: "flat" | "voice_enhance" | "music_enhance" | "loudness" | "hum_reduction" | "bass_boost" | "bass_reduce" | "treble_boost" | "treble_reduce";
+  noiseReductionAmount?: number;
+  loudness?: { amount: number; uniformity: number };
+  pitchSemitones?: number;
 }
 
 export interface EditTransition {
-  type: "cross_dissolve" | "fade_to_color" | "audio_crossfade";
+  type: "cross_dissolve";
   durationSeconds: number;
 }
 
