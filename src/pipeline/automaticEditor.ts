@@ -243,10 +243,13 @@ function snapToSpeech(range: TimeRange, transcript: TranscriptV1 | undefined): T
   if (!transcript) return range;
   const segments = transcript.segments.filter((segment) => segment.start < range.end && segment.end > range.start);
   if (segments.length === 0) return range;
-  return {
+  const snapped = {
     start: Math.max(range.start, segments[0]!.start),
     end: Math.min(range.end, segments.at(-1)!.end),
   };
+  // A partial/low-confidence transcript must not turn an otherwise useful
+  // video into a sub-second clip. In that case retain the analysed scene.
+  return snapped.end - snapped.start >= 1 ? snapped : range;
 }
 
 function buildCandidates(
