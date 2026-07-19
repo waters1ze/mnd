@@ -199,35 +199,44 @@ try {
 
     if (-not $SkipPython) {
         Write-Step "Preparing the private Python environment"
-        $python = Get-PythonCommand
-        if (-not $python) {
-            Write-Warning "Python 3.10+ was not found. MND is installed, but local transcription needs Python."
-        } else {
-            $pythonFile = [string]$python.File
-            $pythonPrefix = [string[]]$python.Prefix
-            $versionCode = "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-            $pythonVersionText = (& $pythonFile @pythonPrefix -c $versionCode).Trim()
-            try { $pythonVersion = [Version]$pythonVersionText } catch { $pythonVersion = [Version]"0.0" }
-            if ($pythonVersion -lt [Version]"3.10") {
-                Write-Warning "Python $pythonVersionText is too old. Local transcription needs Python 3.10+."
+        $privatePython = Join-Path $pythonDirectory "Scripts\python.exe"
+        $createdPrivatePython = $false
+        try {
+            if (Test-Path -LiteralPath $privatePython) {
+                Write-Host "Reusing the existing private Python environment." -ForegroundColor DarkGray
             } else {
-                if (Test-Path -LiteralPath $pythonDirectory) {
-                    Remove-Item -LiteralPath $pythonDirectory -Recurse -Force
-                }
-                try {
-                    & $pythonFile @pythonPrefix -m venv $pythonDirectory
-                    Assert-LastExitCode "python -m venv"
-                    $privatePython = Join-Path $pythonDirectory "Scripts\python.exe"
-                    & $privatePython -m pip install --disable-pip-version-check -r (Join-Path $appDirectory "sidecar\requirements.txt")
-                    Assert-LastExitCode "Python dependency installation"
-                    Write-Host "Private Python environment is ready." -ForegroundColor Green
-                } catch {
-                    if (Test-Path -LiteralPath $pythonDirectory) {
-                        Remove-Item -LiteralPath $pythonDirectory -Recurse -Force
+                $python = Get-PythonCommand
+                if (-not $python) {
+                    Write-Warning "Python 3.10+ was not found. MND is installed, but local transcription needs Python."
+                } else {
+                    $pythonFile = [string]$python.File
+                    $pythonPrefix = [string[]]$python.Prefix
+                    $versionCode = "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+                    $pythonVersionText = (& $pythonFile @pythonPrefix -c $versionCode).Trim()
+                    try { $pythonVersion = [Version]$pythonVersionText } catch { $pythonVersion = [Version]"0.0" }
+                    if ($pythonVersion -lt [Version]"3.10") {
+                        Write-Warning "Python $pythonVersionText is too old. Local transcription needs Python 3.10+."
+                    } else {
+                        if (Test-Path -LiteralPath $pythonDirectory) {
+                            Remove-Item -LiteralPath $pythonDirectory -Recurse -Force
+                        }
+                        & $pythonFile @pythonPrefix -m venv $pythonDirectory
+                        Assert-LastExitCode "python -m venv"
+                        $createdPrivatePython = $true
                     }
-                    Write-Warning "Local transcription dependencies could not be installed: $($_.Exception.Message)"
                 }
             }
+
+            if (Test-Path -LiteralPath $privatePython) {
+                & $privatePython -m pip install --disable-pip-version-check -r (Join-Path $appDirectory "sidecar\requirements.txt")
+                Assert-LastExitCode "Python dependency installation"
+                Write-Host "Private Python environment is ready." -ForegroundColor Green
+            }
+        } catch {
+            if ($createdPrivatePython -and (Test-Path -LiteralPath $pythonDirectory)) {
+                Remove-Item -LiteralPath $pythonDirectory -Recurse -Force
+            }
+            Write-Warning "Local transcription dependencies could not be installed: $($_.Exception.Message)"
         }
     }
 
@@ -253,9 +262,14 @@ node "%~dp0..\app\dist\index.js" %*
     Write-Host "Run from any directory:" -ForegroundColor White
     Write-Host "  mnd" -ForegroundColor Magenta
     Write-Host "  mnd doctor --full" -ForegroundColor Magenta
-    if (-not (Get-Command "agy" -ErrorAction SilentlyContinue)) {
+    $agyDefaultPath = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "agy\bin\agy.exe" } else { "" }
+    $agyInstalled = (Get-Command "agy" -ErrorAction SilentlyContinue) -or ($agyDefaultPath -and (Test-Path -LiteralPath $agyDefaultPath))
+    if (-not $agyInstalled) {
         Write-Host "`nAntigravity CLI was not found. Install it separately when needed:" -ForegroundColor Yellow
         Write-Host "  irm https://antigravity.google/cli/install.ps1 | iex" -ForegroundColor Yellow
+    } elseif (-not (Get-Command "agy" -ErrorAction SilentlyContinue)) {
+        Write-Host "`nAntigravity CLI found at: $agyDefaultPath" -ForegroundColor Green
+        Write-Host "MND will discover it automatically even if agy is not in PATH." -ForegroundColor DarkGray
     }
 } finally {
     if (Test-Path -LiteralPath $workDirectory) {

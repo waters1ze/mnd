@@ -125,10 +125,15 @@ agy --print "Reply with exactly: OK" --print-timeout 30s --model "Gemini 3.5 Fla
 
 ```powershell
 $agyBin = Join-Path $env:LOCALAPPDATA 'agy\bin'
-[Environment]::SetEnvironmentVariable('Path', $agyBin, 'User')
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (-not (@($userPath -split ';') -contains $agyBin)) {
+  [Environment]::SetEnvironmentVariable('Path', "$($userPath.TrimEnd(';'));$agyBin", 'User')
+}
 $env:Path = "$agyBin;$env:Path"
 agy --version
 ```
+
+Даже без этой настройки MND проверяет стандартный `%LOCALAPPDATA%\agy\bin\agy.exe` самостоятельно. PATH нужен только для прямого вызова `agy` из любого терминала.
 
 В PATH должен храниться сам путь, а не буквальный текст вроде `[Environment]::GetEnvironmentVariable(...)`. Альтернативно можно указать executable только для MND:
 
