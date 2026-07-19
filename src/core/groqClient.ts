@@ -23,11 +23,6 @@ async function getApiKey(): Promise<string> {
     key = reference;
   }
   if (!key) throw new Error("Groq API key is not available in secure storage. Open config and set the key again.");
-  if (!key) {
-    throw new Error(
-      `Groq API key not set. Run \`config\` → Connections → Set API key (ref: ${cfg.connections.groq_api_key_ref})`
-    );
-  }
   return key;
 }
 
@@ -72,22 +67,28 @@ export interface ChatResponse {
   choices: Array<{ message: { content: string } }>;
 }
 
+// Valid Groq chat models (used as fallback when the configured model belongs
+// to a different provider such as antigravity or ollama).
+const GROQ_CHAT_FALLBACK = "llama-3.3-70b-versatile";
+const GROQ_VISION_FALLBACK = "llama-3.2-90b-vision-preview";
+
 export async function groqChat(
   messages: ChatMessage[],
   step = "chat",
   jsonMode = false
 ): Promise<string> {
   const profile = await getActiveProfile();
-  const model = profile.text.model ?? "llama-3.3-70b-versatile";
+  // Only use the configured model when its provider is actually groq;
+  // sending an antigravity/ollama model name to the Groq API causes a 404.
+  const model = profile.text.provider === "groq" && profile.text.model
+    ? profile.text.model
+    : GROQ_CHAT_FALLBACK;
   const cfg = await loadConfig();
   const maxRetries = cfg.fallback.max_retries_before_fallback;
 
   return withLog(step, "groq", model, async () => {
     const apiKey = await getApiKey();
-    const body: Record<string, unknown> = {
-      model,
-      messages,
-    };
+    const body: Record<string, unknown> = { model, messages };
     if (jsonMode) {
       body["response_format"] = { type: "json_object" };
     }
@@ -113,7 +114,9 @@ export async function groqVisionChat(
   step = "vision"
 ): Promise<string> {
   const profile = await getActiveProfile();
-  const model = profile.vision.model ?? "llama-3.2-90b-vision-preview";
+  const model = profile.vision.provider === "groq" && profile.vision.model
+    ? profile.vision.model
+    : GROQ_VISION_FALLBACK;
   const cfg = await loadConfig();
   const maxRetries = cfg.fallback.max_retries_before_fallback;
 

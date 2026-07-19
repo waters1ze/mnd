@@ -17,6 +17,7 @@ import {
 } from "../core/sourceManifest.js";
 import { atomicWriteFile } from "../core/atomic.js";
 import { emitProgress, emitResult } from "../core/output.js";
+import { ICONS, startCountProgress, startSpinner, stopSpinner } from "../ui/progressBar.js";
 import { resetCancellation, setupSignalHandlers } from "../core/cancellation.js";
 import { transcribeSource } from "../pipeline/productionTranscription.js";
 import { analyzeSource } from "../pipeline/mediaAnalysis.js";
@@ -167,13 +168,17 @@ async function runTranscriptions(ctx: ProjectContext, manifest: SourceManifest, 
   const operations: OperationRecord[] = [];
   const sources = manifest.entries.filter((source) => source.audioStreams.length > 0 && (!requestedSourceId || source.id === requestedSourceId));
   if (requestedSourceId && sources.length === 0) throw new Error(`Audio source not found: ${requestedSourceId}`);
-  for (const source of sources) {
+  const tBar = sources.length > 1 ? startCountProgress("Transcribing", sources.length, ICONS.transcribe) : null;
+  for (let i = 0; i < sources.length; i++) {
+    const source = sources[i]!;
     await verifySourceRecord(ctx.paths.root, source);
-    emitProgress(`Transcribing ${source.relativePath}...`);
+    const label = basename(source.relativePath);
+    if (tBar) { tBar.update(i, label); } else { startSpinner(`${ICONS.transcribe}  Transcribing ${label}...`); }
     const result = await transcribeSource(source, ctx.paths.cacheDir);
     existing.set(source.id, result.transcript);
     operations.push(result.operation);
   }
+  if (tBar) { tBar.stop(`Transcribed ${sources.length} source(s)`); } else if (sources.length === 1) { stopSpinner(`Transcribed ${basename(sources[0]!.relativePath)}`); }
   const validSourceIds = new Set(manifest.entries.map((source) => source.id));
   const transcripts = [...existing.values()].filter((transcript) => validSourceIds.has(transcript.sourceId));
   await saveTranscripts(ctx.paths, ctx.project.id, transcripts);
@@ -277,14 +282,18 @@ export const handleAnalyzeProduction: CommandHandler = async (args) => {
   const analysesBySource = new Map((await loadAnalyses(ctx.paths)).map((analysis) => [analysis.sourceId, analysis]));
   const operations = [...transcription.operations];
   let cacheHits = 0;
-  for (const source of manifest.entries.filter((entry) => entry.kind === "video" || entry.kind === "audio")) {
+  const mediaSources = manifest.entries.filter((entry) => entry.kind === "video" || entry.kind === "audio");
+  const aBar = mediaSources.length > 0 ? startCountProgress(`Analyzing ${mediaSources.length} source(s)`, mediaSources.length, ICONS.analyze) : null;
+  for (let i = 0; i < mediaSources.length; i++) {
+    const source = mediaSources[i]!;
     await verifySourceRecord(ctx.paths.root, source);
-    emitProgress(`Analyzing ${source.relativePath}...`);
+    aBar?.update(i, basename(source.relativePath));
     const result = await analyzeSource(source, ctx.paths.cacheDir, transcripts.find((transcript) => transcript.sourceId === source.id));
     analysesBySource.set(source.id, result.analysis);
     operations.push(...result.operations);
     if (result.cacheHit) cacheHits += 1;
   }
+  aBar?.stop();
   const validSourceIds = new Set(manifest.entries.map((source) => source.id));
   const analyses = [...analysesBySource.values()].filter((analysis) => validSourceIds.has(analysis.sourceId));
   await saveAnalyses(ctx.paths, ctx.project.id, analyses);
@@ -633,11 +642,14 @@ export const handleAutoEdit: CommandHandler = async (args) => {
     appendForwardedFlag(args, editArgs, flag);
   }
   if (args.includes("--deterministic")) editArgs.push("--deterministic");
-  emitProgress(`Creating the edit plan${model ? ` with ${model}` : ""}...`);
+  startSpinner(`${ICONS.plan}  Creating edit plan…`);
   await handleEdit(editArgs, `auto edit ${slug}`);
+  stopSpinner(`${ICONS.plan}  Edit plan ready`);
+  startSpinner(`${ICONS.export}  Building & exporting FCPXML…`);
   await handleEdit(["build", "--project", slug], `auto build ${slug}`);
   await handleExport(["resolve", "--project", slug], `auto export ${slug}`);
-  emitProgress(`Creating title, description and thumbnail with ${selectedModel}...`);
+  stopSpinner(`${ICONS.export}  FCPXML exported`);
+  startSpinner(`${ICONS.publish}  Generating title, description & thumbnail…`);
   const publishPackage = await generatePublishPackage({
     userPrompt: prompt,
     model: selectedModel,
