@@ -1,3 +1,11 @@
 packages:
   - "apps/*"
   - "."
+
+# pnpm 11 replacement for the removed `onlyBuiltDependencies` setting.
+# Keep native/binary package scripts explicitly reviewed and allowlisted.
+allowBuilds:
+  esbuild: true
+  "@napi-rs/keyring": true
+  ffmpeg-static: true
+  unrs-resolver: true
