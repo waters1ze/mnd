@@ -194,7 +194,13 @@ try {
     New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
     $backupDirectory = Join-Path $InstallRoot "app.previous"
     if (Test-Path -LiteralPath $backupDirectory) {
-        Remove-Item -LiteralPath $backupDirectory -Recurse -Force
+        try {
+            Remove-Item -LiteralPath $backupDirectory -Recurse -Force
+        } catch {
+            # A native module can still be held by the process that launched
+            # this update. Preserve that old backup and use a fresh slot.
+            $backupDirectory = Join-Path $InstallRoot ("app.previous-" + [Guid]::NewGuid().ToString("N"))
+        }
     }
     if (Test-Path -LiteralPath $appDirectory) {
         Move-Item -LiteralPath $appDirectory -Destination $backupDirectory
@@ -208,12 +214,16 @@ try {
         }
         throw
     }
-    if (Test-Path -LiteralPath $backupDirectory) {
-        Remove-Item -LiteralPath $backupDirectory -Recurse -Force
-    }
     if ($installedCommit) {
         $marker = @{ repository = $Repository; branch = $Branch; commit = $installedCommit; installedAt = [DateTime]::UtcNow.ToString("o") } | ConvertTo-Json
         [IO.File]::WriteAllText((Join-Path $appDirectory ".mnd-update.json"), $marker + [Environment]::NewLine, [Text.Encoding]::UTF8)
+    }
+    if (Test-Path -LiteralPath $backupDirectory) {
+        try {
+            Remove-Item -LiteralPath $backupDirectory -Recurse -Force
+        } catch {
+            Write-Warning "The previous MND build is still in use and will be cleaned up on a later update."
+        }
     }
 
     if (-not $SkipPython) {
