@@ -54,6 +54,16 @@ export interface AutoEditResult {
   fcpxmlRelativePath?: string;
   exportBundlePath: string;
   validationPath: string;
+  title: string;
+  description: string;
+  tags: string[];
+  thumbnailPath: string;
+  thumbnailRelativePath?: string;
+  publishJsonPath: string;
+  publishMarkdownPath: string;
+  publishRelativePath?: string;
+  titlePath: string;
+  descriptionPath: string;
 }
 
 export async function selectVaultDirectory(): Promise<{ candidateId: string; displayPath: string; displayName: string }> {

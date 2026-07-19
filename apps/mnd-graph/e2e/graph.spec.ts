@@ -53,6 +53,16 @@ async function installTauriMock(page: Page, activeVault = false): Promise<void> 
           fcpxmlRelativePath: 'Projects/test-edit/exports/MND_Export/final-timeline.fcpxml',
           exportBundlePath: '/fake/vault/Projects/test-edit/exports/MND_Export',
           validationPath: '/fake/vault/Projects/test-edit/exports/MND_Export/validation-report.json',
+          title: 'Как собрать динамичный ролик',
+          description: 'Готовое описание ролика от Antigravity.',
+          tags: ['монтаж', 'видео', 'MND'],
+          thumbnailPath: '/fake/vault/Projects/test-edit/exports/MND_Export/thumbnail.jpg',
+          thumbnailRelativePath: 'Projects/test-edit/exports/MND_Export/thumbnail.jpg',
+          publishJsonPath: '/fake/vault/Projects/test-edit/exports/MND_Export/publish.json',
+          publishMarkdownPath: '/fake/vault/Projects/test-edit/exports/MND_Export/PUBLISH_PACKAGE.md',
+          publishRelativePath: 'Projects/test-edit/exports/MND_Export/PUBLISH_PACKAGE.md',
+          titlePath: '/fake/vault/Projects/test-edit/exports/MND_Export/title.txt',
+          descriptionPath: '/fake/vault/Projects/test-edit/exports/MND_Export/description.txt',
         };
       }
       if (command === 'rebuild_vault_index') return 'Rebuilt 1 notes';
@@ -95,4 +105,6 @@ test('AI studio turns a prompt into a DaVinci timeline result', async ({ page })
   await page.getByRole('button', { name: 'Создать монтаж' }).click();
   await expect(page.getByText('Монтаж готов')).toBeVisible();
   await expect(page.getByText(/final-timeline\.fcpxml/)).toBeVisible();
+  await expect(page.getByText('Как собрать динамичный ролик')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Показать thumbnail.jpg' })).toBeEnabled();
 });

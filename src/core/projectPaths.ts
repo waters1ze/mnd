@@ -36,6 +36,11 @@ export interface ProjectPaths {
   exportReportJson: string;
   validationReportJson: string;
   subtitlesSrt: string;
+  thumbnailJpg: string;
+  publishJson: string;
+  publishMd: string;
+  titleTxt: string;
+  descriptionTxt: string;
   importReadme: string;
   validationDir: string;
   reportsDir: string;
@@ -100,6 +105,11 @@ export function getProjectPaths(vaultPath: string, slug: string): ProjectPaths {
     exportReportJson: join(exportBundleDir, "export-report.json"),
     validationReportJson: join(exportBundleDir, "validation-report.json"),
     subtitlesSrt: join(exportBundleDir, "subtitles.srt"),
+    thumbnailJpg: join(exportBundleDir, "thumbnail.jpg"),
+    publishJson: join(exportBundleDir, "publish.json"),
+    publishMd: join(exportBundleDir, "PUBLISH_PACKAGE.md"),
+    titleTxt: join(exportBundleDir, "title.txt"),
+    descriptionTxt: join(exportBundleDir, "description.txt"),
     importReadme: join(exportBundleDir, "README_IMPORT.txt"),
     validationDir: join(exportsDir, "validation"),
     

@@ -22,11 +22,13 @@ import { transcribeSource } from "../pipeline/productionTranscription.js";
 import { analyzeSource } from "../pipeline/mediaAnalysis.js";
 import { buildAutomaticEditPlan, type AutomaticEditOptions, type SourceRangeInstruction } from "../pipeline/automaticEditor.js";
 import { refineEditPlanWithAi } from "../pipeline/aiEditPlan.js";
+import { generatePublishPackage } from "../pipeline/publishPackage.js";
 import { validateEditPlan } from "../pipeline/editPlanValidator.js";
 import { compileTimeline } from "../pipeline/timelineCompiler.js";
 import { exportResolveBundle } from "../export/fcpxmlExporter.js";
 import { validateFcpxmlFile } from "../export/fcpxmlValidator.js";
 import { createProject, listRules, slugify } from "../core/vault.js";
+import { listAntigravityModels } from "../core/antigravityClient.js";
 import type {
   EditPlanV1,
   EditProfile,
@@ -528,7 +530,13 @@ export const handleAutoEdit: CommandHandler = async (args) => {
   await handleAnalyzeProduction(["--project", slug], `auto analyze ${slug}`);
   const editArgs = ["plan", "--project", slug, "--provider", "antigravity", "--instruction", prompt];
   const model = flagValue(args, "--model");
-  if (model) editArgs.push("--model", model);
+  const availableModels = await listAntigravityModels();
+  const configuredText = cfg.models[cfg.profile].text;
+  const configuredAntigravityModel = configuredText.provider === "antigravity" ? configuredText.model : undefined;
+  const selectedModel = model ?? (configuredAntigravityModel && availableModels.includes(configuredAntigravityModel) ? configuredAntigravityModel : availableModels[0]);
+  if (!selectedModel) throw new Error("No Antigravity model is selected. Use --model with a value from `agy models`.");
+  if (!availableModels.includes(selectedModel)) throw new Error(`Unknown Antigravity model: ${selectedModel}. Choose a value from \`agy models\`.`);
+  editArgs.push("--model", selectedModel);
   for (const flag of ["--profile", "--aspect", "--fps", "--target-duration", "--pacing", "--broll", "--music-level"]) {
     appendForwardedFlag(args, editArgs, flag);
   }
@@ -537,15 +545,32 @@ export const handleAutoEdit: CommandHandler = async (args) => {
   await handleEdit(editArgs, `auto edit ${slug}`);
   await handleEdit(["build", "--project", slug], `auto build ${slug}`);
   await handleExport(["resolve", "--project", slug], `auto export ${slug}`);
+  emitProgress(`Creating title, description and thumbnail with ${selectedModel}...`);
+  const publishPackage = await generatePublishPackage({
+    userPrompt: prompt,
+    model: selectedModel,
+    manifest: refreshed.manifest,
+    analyses: await loadAnalyses(paths),
+    transcripts: await loadTranscripts(paths),
+    paths,
+  });
   emitResult({
     ok: true,
     status: "completed",
     projectId: project.id,
     projectSlug: slug,
-    model: model ?? null,
+    model: selectedModel,
     sourceCount: refreshed.manifest.entries.length,
     fcpxmlPath: paths.timelineFcpxml,
     exportBundlePath: paths.exportBundleDir,
     validationPath: paths.validationReportJson,
-  }, `Auto edit completed. Open in DaVinci Resolve: ${paths.timelineFcpxml}`);
+    title: publishPackage.publish.title,
+    description: publishPackage.publish.description,
+    tags: publishPackage.publish.tags,
+    thumbnailPath: publishPackage.thumbnailPath,
+    publishJsonPath: publishPackage.publishJsonPath,
+    publishMarkdownPath: publishPackage.publishMarkdownPath,
+    titlePath: publishPackage.titlePath,
+    descriptionPath: publishPackage.descriptionPath,
+  }, `Auto edit and publishing package completed. Open in DaVinci Resolve: ${paths.timelineFcpxml}`);
 };

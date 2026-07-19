@@ -13,8 +13,10 @@ import {
   Bot,
   CheckCircle2,
   ExternalLink,
+  FileText,
   Film,
   FolderSearch2,
+  Image,
   Loader2,
   RefreshCw,
   Sparkles,
@@ -27,6 +29,7 @@ const progressMessages = [
   'Antigravity составляет монтажный план',
   'Проверяем границы клипов и собираем timeline',
   'Формируем FCPXML-пакет для DaVinci Resolve',
+  'Antigravity готовит название, описание и превью',
 ];
 
 function formatBytes(value: number): string {
@@ -165,7 +168,7 @@ export function StudioPanel({ vaultId }: { vaultId: string }) {
                 <p className="text-xs text-slate-400">{progressMessages[progressIndex]}</p>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-5 gap-1.5">
+            <div className="mt-4 grid grid-cols-6 gap-1.5">
               {progressMessages.map((_, index) => <div key={index} className={`h-1 rounded-full ${index <= progressIndex ? 'bg-gradient-to-r from-cyan-400 to-violet-400' : 'bg-white/8'}`} />)}
             </div>
           </section>
@@ -180,9 +183,16 @@ export function StudioPanel({ vaultId }: { vaultId: string }) {
         {result && (
           <section className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 p-4 space-y-3">
             <div className="flex items-center gap-2 text-emerald-300"><CheckCircle2 className="w-5 h-5" /><p className="text-sm font-semibold">Монтаж готов</p></div>
-            <p className="text-xs leading-relaxed text-slate-300">FCPXML проверен. Импортируйте его в DaVinci Resolve — исходники останутся online.</p>
+            <p className="text-xs leading-relaxed text-slate-300">FCPXML проверен, а Antigravity подготовил пакет для публикации.</p>
+            <div className="rounded-xl border border-white/8 bg-black/15 p-3 space-y-2">
+              <p className="text-sm font-semibold text-white">{result.title}</p>
+              <p className="text-xs leading-relaxed text-slate-400 line-clamp-4 whitespace-pre-line">{result.description}</p>
+              <div className="flex flex-wrap gap-1.5">{result.tags.map(tag => <span key={tag} className="rounded-full bg-violet-400/10 px-2 py-1 text-[10px] text-violet-200">{tag}</span>)}</div>
+            </div>
             <p className="text-[11px] font-mono text-slate-500 break-all">{result.fcpxmlPath}</p>
             <button onClick={() => result.fcpxmlRelativePath && revealVaultEntry(vaultId, result.fcpxmlRelativePath)} disabled={!result.fcpxmlRelativePath} className="secondary-button w-full"><ExternalLink className="w-4 h-4" /> Показать FCPXML</button>
+            <button onClick={() => result.thumbnailRelativePath && revealVaultEntry(vaultId, result.thumbnailRelativePath)} disabled={!result.thumbnailRelativePath} className="secondary-button w-full"><Image className="w-4 h-4" /> Показать thumbnail.jpg</button>
+            <button onClick={() => result.publishRelativePath && revealVaultEntry(vaultId, result.publishRelativePath)} disabled={!result.publishRelativePath} className="secondary-button w-full"><FileText className="w-4 h-4" /> Название и описание</button>
           </section>
         )}
       </div>

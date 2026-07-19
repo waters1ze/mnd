@@ -244,12 +244,22 @@ pub async fn run_auto_edit(
             return Err(format!("MND_AUTO_EDIT_FAILED:{message}"));
         }
         if let Some(Value::Object(ref mut object)) = last_json {
-            if let Some(path) = object.get("fcpxmlPath").and_then(Value::as_str) {
-                if let Ok(relative) = Path::new(path).strip_prefix(&root) {
-                    object.insert(
-                        "fcpxmlRelativePath".to_string(),
-                        Value::String(relative.to_string_lossy().replace('\\', "/")),
-                    );
+            for (path_key, relative_key) in [
+                ("fcpxmlPath", "fcpxmlRelativePath"),
+                ("thumbnailPath", "thumbnailRelativePath"),
+                ("publishMarkdownPath", "publishRelativePath"),
+            ] {
+                let path = object
+                    .get(path_key)
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+                if let Some(path) = path {
+                    if let Ok(relative) = Path::new(&path).strip_prefix(&root) {
+                        object.insert(
+                            relative_key.to_string(),
+                            Value::String(relative.to_string_lossy().replace('\\', "/")),
+                        );
+                    }
                 }
             }
         }
