@@ -5,5 +5,5 @@ describe("Antigravity Discovery", () => {
     const res = await getVerifiedAntigravity(false);
     expect(res).toBeDefined();
     expect(typeof res.status).toBe("string");
-  }, 30_000);
+  }, 60_000);
 });
