@@ -162,7 +162,11 @@ try {
     Write-Step "Installing Node.js dependencies"
     Push-Location $sourceDirectory
     try {
-        & $npmCommand install --workspaces=false --include=dev --no-audit --no-fund
+        # MND's installer needs development dependencies to compile TypeScript.
+        # Keep npm's transitive deprecation notices out of the normal installer
+        # output; installation failures still use npm's error-level output and
+        # stop the installer through Assert-LastExitCode below.
+        & $npmCommand install --workspaces=false --include=dev --no-audit --no-fund --loglevel=error
         Assert-LastExitCode "npm install"
 
         Write-Step "Building MND"
