@@ -41,6 +41,7 @@ export interface SourceRecord {
   timeBase: string;
   sampleRate: number;
   channels: number;
+  tags?: Record<string, string>;
 }
 
 export interface SourceManifest {

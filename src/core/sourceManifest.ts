@@ -83,6 +83,7 @@ export async function buildSourceRecord(projectRoot: string, filePath: string): 
     timeBase: media.timeBase,
     sampleRate: media.sampleRate,
     channels: media.channels,
+    ...(media.tags ? { tags: media.tags } : {}),
   };
 }
 

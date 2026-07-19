@@ -677,4 +677,5 @@ export const handleAutoEdit: CommandHandler = async (args) => {
     titlePath: publishPackage.titlePath,
     descriptionPath: publishPackage.descriptionPath,
   }, `Auto edit and publishing package completed. Open in DaVinci Resolve: ${paths.timelineFcpxml}`);
+  stopSpinner(`${ICONS.publish}  Auto edit and publishing package completed`);
 };

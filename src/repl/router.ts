@@ -229,7 +229,7 @@ function findEntry(name: string): CommandEntry | undefined {
   if (custom) return custom;
 
   const def = COMMAND_REGISTRY.find(
-    (e) => e.name === name || (e.aliases ?? []).includes(name)
+    (e) => e.name === name || (e.aliases ?? []).includes(name) || e.slash === name
   );
   if (def && def.handler) {
     const entry: CommandEntry = {

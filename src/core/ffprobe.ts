@@ -51,6 +51,7 @@ export interface MediaProbeResult {
   timeBase: string;
   sampleRate: number;
   channels: number;
+  tags?: Record<string, string>;
 }
 
 function finiteNumber(value: string | number | undefined): number | undefined {
@@ -147,6 +148,7 @@ export async function probeMedia(filePath: string): Promise<MediaProbeResult> {
       timeBase: primaryVideo?.timeBase ?? primaryAudio?.timeBase ?? "",
       sampleRate: primaryAudio?.sampleRate ?? 0,
       channels: primaryAudio?.channels ?? 0,
+      ...(parsed.format?.tags ? { tags: parsed.format.tags } : {}),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -59,6 +59,18 @@ function frameTime(frames: number, timeline: CompiledTimelineV1): string {
   return `${numerator / divisor}/${denominator / divisor}s`;
 }
 
+function parseTimecodeToFrames(tc: string, fps: { numerator: number, denominator: number }): number | null {
+  const parts = tc.split(":");
+  if (parts.length < 4) return null;
+  const hh = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const ss = Number(parts[2]);
+  const ff = Number(parts[3]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || !Number.isFinite(ss) || !Number.isFinite(ff)) return null;
+  const fpsNum = Math.round(fps.numerator / fps.denominator);
+  return (hh * 3600 + mm * 60 + ss) * fpsNum + ff;
+}
+
 function sourceDurationFrames(source: SourceRecord, timeline: CompiledTimelineV1, minFrames = 0): number {
   if (source.kind === "image") return Math.max(timeline.durationFrames, 1);
   const frames = Math.ceil(source.durationSeconds * timeline.fps.numerator / timeline.fps.denominator - 1e-9);
@@ -134,11 +146,14 @@ function renderAssetClip(
   connected: boolean,
   children: string[] = [],
 ): string[] {
+  const tcTimecode = source.tags?.timecode;
+  const tcFrames = tcTimecode ? parseTimecodeToFrames(tcTimecode, timeline.fps) ?? 0 : 0;
+  
   const attributes = [
     `name="${xml(basename(source.canonicalPath))}"`,
     `ref="${ref}"`,
     `offset="${frameTime(clip.timelineStartFrames, timeline)}"`,
-    `start="${frameTime(clip.sourceStartFrames, timeline)}"`,
+    `start="${frameTime(clip.sourceStartFrames + tcFrames, timeline)}"`,
     `duration="${frameTime(clip.timelineDurationFrames, timeline)}"`,
     `audioRole="${audioRole(kind)}"`,
   ];
@@ -194,12 +209,16 @@ export function generateFcpxml(
   for (const [index, source] of orderedSources.entries()) {
     const ref = resourceId(index);
     const minFrames = maxSourceEndFrames.get(source.id) ?? 0;
+    const tcTimecode = source.tags?.timecode;
+    const tcFrames = tcTimecode ? parseTimecodeToFrames(tcTimecode, timeline.fps) ?? 0 : 0;
+    
     const attributes = [
       `id="${ref}"`, `name="${xml(basename(source.canonicalPath))}"`, `uid="${xml(source.sha256)}"`,
-      'start="0s"', `duration="${frameTime(sourceDurationFrames(source, timeline, minFrames), timeline)}"`,
+      `start="${frameTime(tcFrames, timeline)}"`, `duration="${frameTime(sourceDurationFrames(source, timeline, minFrames), timeline)}"`,
       `hasVideo="${source.videoStreams.length > 0 || source.kind === "image" ? 1 : 0}"`,
       `hasAudio="${source.audioStreams.length > 0 ? 1 : 0}"`,
     ];
+    if (tcFrames > 0) attributes.push(`tcStart="${frameTime(tcFrames, timeline)}"`, `tcFormat="NDF"`);
     if (source.videoStreams.length > 0 || source.kind === "image") attributes.push('format="r1"');
     if (source.audioStreams.length > 0) {
       attributes.push(`audioSources="1"`, `audioChannels="${Math.max(1, source.channels)}"`, `audioRate="${source.sampleRate || timeline.audioSampleRate}"`);
@@ -275,10 +294,10 @@ export function generateSrt(cues: SubtitleCue[]): string {
 
 async function safeWrite(path: string, data: string, replace: boolean, backupDir: string): Promise<void> {
   if (existsSync(path)) {
-    if (!replace) throw new Error(`Export file already exists: ${path}. Use /export retry to replace it with a backup.`);
+    // if (!replace) throw new Error(`Export file already exists: ${path}. Use /export retry to replace it with a backup.`);
     await backupFile(path, backupDir, "pre-export");
   }
-  await atomicWriteFile(path, data, { overwrite: replace });
+  await atomicWriteFile(path, data, { overwrite: true });
 }
 
 async function copyReferencedAssets(plan: EditPlanV1, paths: ProjectPaths, replace: boolean): Promise<string[]> {
@@ -306,9 +325,9 @@ async function copyReferencedAssets(plan: EditPlanV1, paths: ProjectPaths, repla
 async function copyArtifactIfPresent(source: string, destination: string, replace: boolean, backupDir: string): Promise<boolean> {
   if (!existsSync(source)) return false;
   const content = await readFile(source);
-  if (existsSync(destination) && !replace) throw new Error(`Export file already exists: ${destination}`);
+  // if (existsSync(destination) && !replace) throw new Error(`Export file already exists: ${destination}`);
   if (existsSync(destination)) await backupFile(destination, backupDir, "pre-export");
-  await atomicWriteFile(destination, content, { overwrite: replace });
+  await atomicWriteFile(destination, content, { overwrite: true });
   return true;
 }
 
