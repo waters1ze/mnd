@@ -192,6 +192,62 @@ export const handleAdd: CommandHandler = async (args) => {
   emitResult({ ok: true, status: "completed", projectId: ctx.project.id, copied, sourceCount: refreshed.manifest.entries.length, changedSourceIds: refreshed.changedSourceIds, removedSourceIds: refreshed.removedSourceIds }, `Added ${copied.length} source file(s); manifest contains ${refreshed.manifest.entries.length} source(s).`);
 };
 
+async function chooseWindowsFolder(): Promise<string | null> {
+  if (process.platform !== "win32") {
+    throw new Error("/folder without a path opens the Windows folder picker. On this system use /add <folder-path>.");
+  }
+
+  const script = [
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+    "$dialog.Description = 'Select the folder with source media for MND'",
+    "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) }",
+  ].join("; ");
+
+  return new Promise((resolvePicker, rejectPicker) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-STA", "-Command", script], {
+      shell: false,
+      windowsHide: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    let error = "";
+    child.stdout?.on("data", (chunk: Buffer) => { output += chunk.toString(); });
+    child.stderr?.on("data", (chunk: Buffer) => { error += chunk.toString(); });
+    child.once("error", rejectPicker);
+    child.once("close", (code) => {
+      if (code !== 0) {
+        rejectPicker(new Error(`Windows folder picker failed${error.trim() ? `: ${error.trim()}` : ""}`));
+        return;
+      }
+      const selected = output.trim();
+      resolvePicker(selected || null);
+    });
+  });
+}
+
+/** Attach a media directory to the current project through the native picker. */
+export const handleFolder: CommandHandler = async (args) => {
+  const ctx = await context(flagValue(args, "--project"));
+  const suppliedPath = positionalArgs(args, ["--project"])[0];
+  const selected = suppliedPath ? resolve(suppliedPath) : await chooseWindowsFolder();
+  if (!selected) {
+    emitResult({ ok: true, status: "cancelled" }, "Folder selection cancelled. The project was not changed.");
+    return;
+  }
+  if (!existsSync(selected)) throw new Error(`Folder does not exist: ${selected}`);
+  const selectedInfo = await stat(selected);
+  if (!selectedInfo.isDirectory()) throw new Error(`/folder requires a directory: ${selected}`);
+
+  emitProgress(`Importing media from ${selected}...`);
+  const copied = await copyIntoSources(selected, ctx.paths.sourcesDir, ctx.paths.root);
+  const refreshed = await refreshManifest(ctx);
+  emitResult(
+    { ok: true, status: "completed", projectId: ctx.project.id, folder: selected, copied, sourceCount: refreshed.manifest.entries.length },
+    `Folder attached: ${copied.length} file(s) imported. ${refreshed.manifest.entries.length} media source(s) are ready. Run /analyze.`,
+  );
+};
+
 export const handleProject: CommandHandler = async (args) => {
   const ctx = await context(args[0]);
   const manifest = await existingManifest(ctx.paths);
@@ -519,27 +575,47 @@ export const handleAutoEdit: CommandHandler = async (args) => {
   setupSignalHandlers();
   const cfg = await loadConfig();
   const vaultPath = resolveVaultPath(cfg);
-  const requestedFolder = flagValue(args, "--folder") ?? vaultPath;
-  const canonicalFolder = await realpath(resolve(requestedFolder));
-  const folderInfo = await stat(canonicalFolder);
-  if (!folderInfo.isDirectory()) throw new Error(`Auto-edit source is not a directory: ${canonicalFolder}`);
   const prompt = flagValue(args, "--prompt") ?? positionalArgs(args, [
     "--folder", "--prompt", "--model", "--name", "--profile", "--aspect", "--fps",
     "--target-duration", "--pacing", "--broll", "--music-level",
   ]).join(" ");
-  if (!prompt.trim()) throw new Error("Usage: /auto --folder <path> --prompt <editing instructions> [--model <Antigravity model>]");
-  const projectName = flagValue(args, "--name") ?? `${basename(canonicalFolder)} Auto Edit`;
-  const slug = slugify(projectName) || `auto-edit-${Date.now()}`;
-  const paths = getProjectPaths(vaultPath, slug);
-  if (!existsSync(paths.projectJson) && !existsSync(paths.projectMd)) {
-    await createProject(vaultPath, projectName, "antigravity-auto");
+  const requestedFolder = flagValue(args, "--folder");
+
+  // In an open project, /auto without text is a convenient analysis command.
+  // It must never fall back to scanning the whole vault or ask for a folder.
+  if (!prompt.trim() && session.currentProjectSlug && !requestedFolder) {
+    await handleAnalyzeProduction(["--project", session.currentProjectSlug], `auto analyze ${session.currentProjectSlug}`);
+    console.log("Analysis is ready. Write /auto \"your editing instructions\" to create the Resolve timeline.");
+    return;
   }
-  session.currentProjectSlug = slug;
-  const project = await loadProjectFile(vaultPath, slug);
-  const mediaFiles = await scanMediaFolder(canonicalFolder);
-  if (mediaFiles.length === 0) throw new Error(`No supported media files were found in ${canonicalFolder}`);
-  emitProgress(`Importing ${mediaFiles.length} media file(s)...`);
-  for (const mediaFile of mediaFiles) await copyIntoSources(mediaFile, paths.sourcesDir, paths.root);
+  if (!prompt.trim()) throw new Error("Open a project and run /auto to analyze it, or use /auto --folder <path> --prompt <editing instructions>.");
+
+  let slug: string;
+  let paths: ProjectPaths;
+  let project: Awaited<ReturnType<typeof loadProjectFile>>;
+  let projectName: string;
+
+  if (session.currentProjectSlug && !requestedFolder) {
+    const active = await context(session.currentProjectSlug);
+    ({ slug, paths, project } = active);
+    projectName = project.name;
+  } else {
+    if (!requestedFolder) throw new Error("No project is open. Create one with /create, attach media with /folder, then run /auto \"instructions\".");
+    const canonicalFolder = await realpath(resolve(requestedFolder));
+    const folderInfo = await stat(canonicalFolder);
+    if (!folderInfo.isDirectory()) throw new Error(`Auto-edit source is not a directory: ${canonicalFolder}`);
+    projectName = flagValue(args, "--name") ?? `${basename(canonicalFolder)} Auto Edit`;
+    slug = slugify(projectName) || `auto-edit-${Date.now()}`;
+    paths = getProjectPaths(vaultPath, slug);
+    if (!existsSync(paths.projectJson) && !existsSync(paths.projectMd)) await createProject(vaultPath, projectName, "antigravity-auto");
+    session.currentProjectSlug = slug;
+    project = await loadProjectFile(vaultPath, slug);
+    const mediaFiles = await scanMediaFolder(canonicalFolder);
+    if (mediaFiles.length === 0) throw new Error(`No supported media files were found in ${canonicalFolder}`);
+    emitProgress(`Importing ${mediaFiles.length} media file(s)...`);
+    for (const mediaFile of mediaFiles) await copyIntoSources(mediaFile, paths.sourcesDir, paths.root);
+  }
+
   const refreshed = await refreshManifest({ vaultPath, slug, paths, project });
   emitProgress(`Analyzing ${refreshed.manifest.entries.length} source(s)...`);
   await handleAnalyzeProduction(["--project", slug], `auto analyze ${slug}`);

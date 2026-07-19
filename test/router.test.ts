@@ -61,6 +61,7 @@ describe("route()", () => {
     registerCommands([
       { name: "config", handler: makeHandler("config", calls) },
       { name: "open", handler: makeHandler("open", calls) },
+      { name: "folder", handler: makeHandler("folder", calls) },
       { name: "analyze", aliases: ["analyse"], handler: makeHandler("analyze", calls) },
       { name: "show history", handler: makeHandler("showHistory", calls) },
       { name: "prompt", handler: makeHandler("prompt", calls) },
@@ -76,6 +77,11 @@ describe("route()", () => {
   test("alias match works", async () => {
     await route("analyse");
     expect(calls).toEqual(["analyze"]);
+  });
+
+  test("folder command dispatches without requiring a typed path", async () => {
+    await route("/folder");
+    expect(calls).toEqual(["folder"]);
   });
 
   test("multi-word command 'show history' dispatched correctly", async () => {

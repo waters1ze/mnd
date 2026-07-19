@@ -38,6 +38,7 @@ import { handleGraph } from "./commands/graph.js";
 import { handleSkills } from "./commands/skills.js";
 import {
   handleAdd,
+  handleFolder,
   handleAnalyzeProduction,
   handleEdit,
   handleExport,
@@ -91,7 +92,7 @@ async function main(): Promise<void> {
     console.log(chalk.gray([
       "Usage: mnd [command]",
       "",
-      "Commands: config, obsidian, open, create, sort, analyze, prompt,",
+      "Commands: config, obsidian, open, create, folder, sort, analyze, prompt,",
       "          approve, fix, show history, full new, full show, thumbnail,",
       "          refactor, rules review, skills, status, backup, restore, login, logout, account"
     ].join("\n")));
@@ -141,6 +142,7 @@ async function main(): Promise<void> {
     { name: "create", handler: handleCreate },
     { name: "project", handler: handleProject },
     { name: "add", handler: handleAdd },
+    { name: "folder", handler: handleFolder },
     { name: "sort", handler: handleSort },
     { name: "analyze", aliases: ["analyse"], handler: handleAnalyzeProduction },
     { name: "transcribe", handler: handleTranscribeProduction },
@@ -170,7 +172,7 @@ async function main(): Promise<void> {
       name: "help",
       handler: async () => {
         console.log(chalk.gray([
-          "Commands: config, obsidian, open, create, sort, analyze, prompt,",
+          "Commands: config, obsidian, open, create, folder, sort, analyze, prompt,",
           "          approve, fix, show history, full new, full show, thumbnail,",
           "          refactor, rules review, skills, status, backup, restore, login, logout, account, graph",
         ].join("\n")));
