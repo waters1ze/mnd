@@ -1,5 +1,5 @@
 import { spawnSync, execSync } from 'child_process';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 
 console.log("Starting release verification...");
 
@@ -54,8 +54,11 @@ if (!lint.success) {
   process.exit(1);
 }
 
-// 5. npm test
-const test = run('npm test -- --runInBand --verbose');
+// 5. npm test. Jest 30 does not include individual test titles in its
+// human-readable verbose output, so use its machine-readable result file.
+const jestResultsPath = '.release-jest-results.json';
+if (existsSync(jestResultsPath)) rmSync(jestResultsPath);
+const test = run(`npm test -- --runInBand --json --outputFile=${jestResultsPath}`);
 if (!test.success) {
   console.error("Tests failed!", test.output);
   process.exit(1);
@@ -76,7 +79,13 @@ if (!cli.success || !cli.output.includes("Usage:")) {
 }
 
 // Check assertions by parsing Jest verbose output
-const foundAssertions = [];
+const foundAssertions = JSON.parse(readFileSync(jestResultsPath, 'utf8')).testResults
+  .flatMap((suite) => suite.assertionResults)
+  .filter((assertion) => assertion.status === 'passed')
+  .flatMap((assertion) => {
+    const match = assertion.fullName.match(/RELEASE_ASSERTION:\s*(R\d{2}[^\s(]+)/);
+    return match ? [match[1]] : [];
+  });
 const regex = /(?:√|✓|\bPASS\b)\s*RELEASE_ASSERTION:\s*(R\d{2}[^\s\(]+)/g;
 let match;
 while ((match = regex.exec(test.output)) !== null) {
@@ -127,6 +136,7 @@ for (const gate of spec.gates) {
   };
 }
 
+if (existsSync(jestResultsPath)) rmSync(jestResultsPath);
 writeFileSync('release-report.json', JSON.stringify(report, null, 2));
 
 if (!allGatesPass) {
