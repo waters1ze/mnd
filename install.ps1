@@ -196,10 +196,6 @@ try {
     if (Test-Path -LiteralPath $backupDirectory) {
         Remove-Item -LiteralPath $backupDirectory -Recurse -Force
     }
-    if ($installedCommit) {
-        $marker = @{ repository = $Repository; branch = $Branch; commit = $installedCommit; installedAt = [DateTime]::UtcNow.ToString("o") } | ConvertTo-Json
-        [IO.File]::WriteAllText((Join-Path $appDirectory ".mnd-update.json"), $marker + [Environment]::NewLine, [Text.Encoding]::UTF8)
-    }
     if (Test-Path -LiteralPath $appDirectory) {
         Move-Item -LiteralPath $appDirectory -Destination $backupDirectory
     }
@@ -214,6 +210,10 @@ try {
     }
     if (Test-Path -LiteralPath $backupDirectory) {
         Remove-Item -LiteralPath $backupDirectory -Recurse -Force
+    }
+    if ($installedCommit) {
+        $marker = @{ repository = $Repository; branch = $Branch; commit = $installedCommit; installedAt = [DateTime]::UtcNow.ToString("o") } | ConvertTo-Json
+        [IO.File]::WriteAllText((Join-Path $appDirectory ".mnd-update.json"), $marker + [Environment]::NewLine, [Text.Encoding]::UTF8)
     }
 
     if (-not $SkipPython) {
