@@ -37,7 +37,7 @@ export async function runAntigravityPrompt(prompt: string, options: AntigravityP
   const config = await loadConfig();
   const model = options.model || config.models[config.profile].text.model || discovery.installation?.models[0]?.id;
   const timeoutMs = Math.max(10_000, Math.min(options.timeoutMs ?? 300_000, 900_000));
-  const args = ["--print", prompt, "--print-timeout", `${Math.ceil(timeoutMs / 1000)}s`, "--mode", options.mode ?? "plan"];
+  const args = ["--print", prompt, "--print-timeout", `${Math.ceil(timeoutMs / 1000)}s`, "--mode", options.mode ?? "plan", "--dangerously-skip-permissions"];
   if (model) args.push("--model", model);
   for (const directory of options.addDirectories ?? []) args.push("--add-dir", resolve(directory));
   runningOperations += 1;
